@@ -1,7 +1,7 @@
 [project]
 name = "toyrl"
 version = "0.0.1"
-description = "A toy reinforcement learning library"
+description = "A clean reinforcement learning library"
 authors = [{ name = "Xiangzhuang Shen", email = "datahonor@gmail.com" }]
 license = { text = "Apache-2.0" }
 readme = "README.md"
