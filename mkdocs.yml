@@ -1,4 +1,4 @@
-site_name:  
+site_name: ToyRL
 repo_url: https://github.com/shenxiangzhuang/toyrl
 repo_name: shenxiangzhuang/toyrl
 site_description: A toy reinforcement learning library
