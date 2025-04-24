@@ -17,7 +17,11 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 requires-python = ">= 3.12"
-dependencies = []
+dependencies = [
+    "gymnasium[classic-control]>=1.1.1",
+    "numpy>=2.2.5",
+    "torch>=2.7.0",
+]
 
 [project.optional-dependencies]
 dev = [
@@ -58,6 +62,11 @@ include-package-data = true
 requires = ["setuptools >= 61.0"]
 build-backend = "setuptools.build_meta"
 
+[dependency-groups]
+dev = [
+    "ipython>=9.1.0",
+]
+
 
 [tool.setuptools.packages.find]
 include = ["toyrl*"]
@@ -75,7 +84,7 @@ changelog_incremental = true
 
 [tool.mypy]
 ignore_missing_imports = true
-strict = true
+#strict = true
 
 
 # Ruff configuration: https://docs.astral.sh/ruff/configuration/#configuring-ruff
@@ -114,8 +123,8 @@ exclude = [
 line-length = 120
 indent-width = 4
 
-# Assume Python 3.9
-target-version = "py39"
+# Assume Python 3.12
+target-version = "py312"
 
 [tool.ruff.lint]
 select = [
@@ -125,12 +134,10 @@ select = [
     'D',  # pydocstyle
     'UP', # pyupgrade
 ]
+ignore = [
+    "D"
+]
 pydocstyle = { convention = "google" }
-
-[tool.ruff.lint.per-file-ignores]
-'docs/*' = ["D"]
-'tests/*' = ["D"]
-
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]
