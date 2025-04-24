@@ -1,27 +1,24 @@
 [project]
-name = "mppt"
-version = "0.6.0"
-description = "A Modern Python Package Template"
-authors = [
-    {name = "Xiangzhuang Shen", email = "datahonor@gmail.com"},
-]
-license = {text = "MIT"}
+name = "toyrl"
+version = "0.0.1"
+description = "A toy reinforcement learning library"
+authors = [{ name = "Xiangzhuang Shen", email = "datahonor@gmail.com" }]
+license = { text = "Apache-2.0" }
 readme = "README.md"
 
 
-classifiers=[
+classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
-requires-python = ">= 3.9"
+requires-python = ">= 3.10"
 dependencies = []
 
 [project.optional-dependencies]
@@ -49,11 +46,11 @@ docs = [
 ]
 
 [project.urls]
-"Homepage" = "https://shenxiangzhuang.github.io/mppt"
-"Bug Tracker" = "https://shenxiangzhuang.github.io/mppt/issues"
-"Documentation" = "https://shenxiangzhuang.github.io/mppt"
-"Source Code" = "https://github.com/shenxiangzhuang/mppt"
-"Release Notes" = "https://shenxiangzhuang.github.io/mppt/changelog/"
+"Homepage" = "https://shenxiangzhuang.github.io/toyrl"
+"Bug Tracker" = "https://shenxiangzhuang.github.io/toyrl/issues"
+"Documentation" = "https://shenxiangzhuang.github.io/toyrl"
+"Source Code" = "https://github.com/shenxiangzhuang/toyrl"
+"Release Notes" = "https://github.com/ai-glimpse/toyrl/releases"
 
 [tool.setuptools]
 zip-safe = true
@@ -65,7 +62,7 @@ build-backend = "setuptools.build_meta"
 
 
 [tool.setuptools.packages.find]
-include = ["mppt*"]
+include = ["toyrl*"]
 namespaces = false
 
 [tool.commitizen]
@@ -124,11 +121,11 @@ target-version = "py39"
 
 [tool.ruff.lint]
 select = [
-    'F',      # Pyflakes
-    'E',      # pycodestyle (Error)
-    'I',      # isort
-    'D',      # pydocstyle
-    'UP',     # pyupgrade
+    'F',  # Pyflakes
+    'E',  # pycodestyle (Error)
+    'I',  # isort
+    'D',  # pydocstyle
+    'UP', # pyupgrade
 ]
 pydocstyle = { convention = "google" }
 

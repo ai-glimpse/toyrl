@@ -1,4 +1,4 @@
-from mppt.hello import hello
+from toyrl.hello import hello
 
 
 def test_hello() -> None:
