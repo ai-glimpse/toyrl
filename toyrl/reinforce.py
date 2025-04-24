@@ -71,9 +71,8 @@ class Agent:
         return action.item(), action_log_prob
 
 
-def train(agent: Agent, optimizer: torch.optim.Optimizer, gamma: float = 0.99):
+def train(agent: Agent, optimizer: torch.optim.Optimizer, gamma: float):
     experiences = agent.replay_buffer.sample()
-
     # returns
     T = len(experiences)
     returns = torch.zeros(T)
@@ -81,7 +80,6 @@ def train(agent: Agent, optimizer: torch.optim.Optimizer, gamma: float = 0.99):
     for t in reversed(range(T)):
         future_ret = experiences[t].reward + gamma * future_ret
         returns[t] = future_ret
-
     # log_probs
     action_log_probs = [exp.action_log_prob for exp in experiences]
     log_probs = torch.stack(action_log_probs)
@@ -95,11 +93,11 @@ def train(agent: Agent, optimizer: torch.optim.Optimizer, gamma: float = 0.99):
     return loss
 
 
-def main():
+def main(gamma: float = 0.99) -> None:
     # env = gym.make("CartPole-v1", render_mode="human")
     env = gym.make("CartPole-v1")
-    in_dim = env.observation_space.shape[0]
-    out_dim = env.action_space.n
+    in_dim = env.observation_space.shape[0]  # type: ignore[index]
+    out_dim = env.action_space.n  # type: ignore[attr-defined]
     policy_net = PolicyNet(in_dim, out_dim)
     agent = Agent(policy_net)
     optimizer = optim.Adam(agent.policy_net.parameters(), lr=0.01)
@@ -109,7 +107,6 @@ def main():
         while not (terminated or truncated):
             action, action_log_prob = agent.act(observation)
             next_observation, reward, terminated, truncated, _ = env.step(action)
-
             experience = Experience(
                 observation=observation,
                 action=action,
@@ -122,7 +119,7 @@ def main():
             agent.replay_buffer.add_experience(experience)
             observation = next_observation
             env.render()
-        loss = train(agent, optimizer)
+        loss = train(agent, optimizer, gamma)
         total_reward = agent.replay_buffer.total_reward()
         solved = total_reward > 475.0
         agent.onpolicy_reset()
