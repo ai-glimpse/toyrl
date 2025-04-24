@@ -17,7 +17,11 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 requires-python = ">= 3.12"
-dependencies = []
+dependencies = [
+    "gymnasium[classic-control]>=1.1.1",
+    "numpy>=2.2.5",
+    "torch>=2.7.0",
+]
 
 [project.optional-dependencies]
 dev = [
@@ -57,6 +61,11 @@ include-package-data = true
 [build-system]
 requires = ["setuptools >= 61.0"]
 build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "ipython>=9.1.0",
+]
 
 
 [tool.setuptools.packages.find]
