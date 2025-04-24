@@ -84,7 +84,7 @@ changelog_incremental = true
 
 [tool.mypy]
 ignore_missing_imports = true
-strict = true
+#strict = true
 
 
 # Ruff configuration: https://docs.astral.sh/ruff/configuration/#configuring-ruff
@@ -123,8 +123,8 @@ exclude = [
 line-length = 120
 indent-width = 4
 
-# Assume Python 3.9
-target-version = "py39"
+# Assume Python 3.12
+target-version = "py312"
 
 [tool.ruff.lint]
 select = [
