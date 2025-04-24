@@ -1,7 +1,7 @@
 [project]
 name = "toyrl"
 version = "0.0.1"
-description = "A Modern Python Package Template"
+description = "A toy reinforcement learning library"
 authors = [{ name = "Xiangzhuang Shen", email = "datahonor@gmail.com" }]
 license = { text = "MIT" }
 readme = "README.md"
@@ -13,13 +13,12 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
-requires-python = ">= 3.9"
+requires-python = ">= 3.10"
 dependencies = []
 
 [project.optional-dependencies]
