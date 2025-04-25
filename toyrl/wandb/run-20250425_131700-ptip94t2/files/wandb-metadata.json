@@ -1,0 +1,44 @@
+{
+  "os": "macOS-15.3.1-arm64-arm-64bit-Mach-O",
+  "python": "CPython 3.13.1",
+  "startedAt": "2025-04-25T05:17:00.360272Z",
+  "program": "/Users/mathew/personal/toyrl/toyrl/reinforce.py",
+  "codePath": "toyrl/reinforce.py",
+  "git": {
+    "remote": "git@github.com:ai-glimpse/toyrl.git",
+    "commit": "7ab3e14865267d61f1684e5e86e1e79c73b5cadd"
+  },
+  "email": "1021550072@qq.com",
+  "root": "/Users/mathew/personal/toyrl/toyrl",
+  "host": "H31490-MAC-01.local",
+  "executable": "/Users/mathew/personal/toyrl/.venv/bin/python",
+  "codePathLocal": "reinforce.py",
+  "cpu_count": 8,
+  "cpu_count_logical": 8,
+  "disk": {
+    "/": {
+      "total": "245107195904",
+      "used": "234996604928"
+    },
+    "/System/Volumes/Data": {
+      "total": "245107195904",
+      "used": "234996604928"
+    }
+  },
+  "memory": {
+    "total": "17179869184"
+  },
+  "cpu": {
+    "count": 8,
+    "countLogical": 8
+  },
+  "apple": {
+    "name": "Apple M2",
+    "ecpuCores": 4,
+    "pcpuCores": 4,
+    "gpuCores": 10,
+    "memoryGb": 16,
+    "swapTotalBytes": "6442450944",
+    "ramTotalBytes": "17179869184"
+  }
+}
