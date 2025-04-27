@@ -99,10 +99,10 @@ class Agent:
     def get_buffer_total_reward(self) -> float:
         return self._replay_buffer.total_reward()
 
-    def act(self, observation: np.floating, epsilon: float) -> int:
+    def act(self, observation: np.floating, epsilon: float) -> tuple[int, float | None]:
         if np.random.rand() < epsilon:
             action = np.random.randint(self._action_num)
-            return action
+            return action, None
         x = torch.from_numpy(observation.astype(np.float32))
         max_q = torch.tensor(-np.inf)
         with torch.no_grad():
@@ -113,7 +113,7 @@ class Agent:
                 if q > max_q:
                     max_q = q
                     best_action = action
-        return best_action
+        return best_action, q.item()
 
     def policy_update(self, gamma: float) -> float:
         experiences = self._replay_buffer.sample()
@@ -191,8 +191,10 @@ class SARSATrainer:
         for episode in range(self.num_episodes):
             observation, _ = self.env.reset()
             terminated, truncated = False, False
+            q_values = []
             while not (terminated or truncated):
-                action = self.agent.act(observation, epsilon)
+                action, q_value = self.agent.act(observation, epsilon)
+                q_values.append(q_value)
                 next_observation, reward, terminated, truncated, _ = self.env.step(action)
                 experience = Experience(
                     observation=observation,
@@ -212,14 +214,18 @@ class SARSATrainer:
             solved = total_reward > self.solved_threshold
             self.agent.onpolicy_reset()
             epsilon = max(0.01, epsilon * 0.997)
+            q_value_mean = np.nanmean(np.array(q_values, dtype=np.float32))
+
             print(
-                f"Episode {episode}, epsilon: {epsilon}, loss: {loss}, total_reward: {total_reward}, solved: {solved}"
+                f"Episode {episode}, epsilon: {epsilon}, loss: {loss}, q_value_mean: {q_value_mean}, "
+                f"total_reward: {total_reward}, solved: {solved}"
             )
 
             wandb.log(
                 {
                     "episode": episode,
                     "loss": loss,
+                    "q_value_mean": q_value_mean,
                     "total_reward": total_reward,
                 }
             )
