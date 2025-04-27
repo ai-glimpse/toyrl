@@ -23,12 +23,12 @@ class PolicyNet(nn.Module):
         self.output_dim = 1
 
         layers = [
-            nn.Linear(self.input_dim, 64),
+            nn.Linear(self.input_dim, 128),
             nn.ReLU(),
-            nn.Linear(64, self.output_dim),
+            nn.Linear(128, self.output_dim),
         ]
         self.model = nn.Sequential(*layers)
-        self.train()
+        # self.train()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.model(x)  # type: ignore
@@ -73,8 +73,8 @@ class ReplayBuffer:
                         reward=experience.reward,
                         next_observation=next_experience.observation,
                         next_action=next_experience.action,
-                        terminated=experience.terminated,
-                        truncated=experience.truncated,
+                        terminated=next_experience.terminated,
+                        truncated=next_experience.truncated,
                     )
                 )
             return res
@@ -105,13 +105,14 @@ class Agent:
             return action
         x = torch.from_numpy(observation.astype(np.float32))
         max_q = torch.tensor(-np.inf)
-        best_action = 0
-        for action in range(self._action_num):
-            x_ = torch.cat((x, torch.tensor([action], dtype=torch.float32)))
-            q = self._policy_net(x_)
-            if q > max_q:
-                max_q = q
-                best_action = action
+        with torch.no_grad():
+            best_action = 0
+            for action in range(self._action_num):
+                x_ = torch.cat((x, torch.tensor([action], dtype=torch.float32)))
+                q = self._policy_net(x_)
+                if q > max_q:
+                    max_q = q
+                    best_action = action
         return best_action
 
     def policy_update(self, gamma: float) -> float:
@@ -133,6 +134,7 @@ class Agent:
             x_tensor = torch.cat((next_observations, next_actions.unsqueeze(1)), dim=1)
             next_q_preds = self._policy_net(x_tensor)
             q_targets = rewards + gamma * (1 - terminated) * next_q_preds
+        # TODO: have bugs here
         loss = torch.nn.functional.mse_loss(q_preds, q_targets)
         # update
         self._optimizer.zero_grad()
@@ -208,7 +210,7 @@ class SARSATrainer:
             total_reward = self.agent.get_buffer_total_reward()
             solved = total_reward > self.solved_threshold
             self.agent.onpolicy_reset()
-            epsilon = max(0.00001, epsilon - 0.00001)
+            epsilon = max(0.01, epsilon * 0.997)
             print(
                 f"Episode {episode}, epsilon: {epsilon}, loss: {loss}, total_reward: {total_reward}, solved: {solved}"
             )
