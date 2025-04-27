@@ -133,8 +133,7 @@ class Agent:
         with torch.no_grad():
             x_tensor = torch.cat((next_observations, next_actions.unsqueeze(1)), dim=1)
             next_q_preds = self._policy_net(x_tensor)
-            q_targets = rewards + gamma * (1 - terminated) * next_q_preds
-        # TODO: have bugs here
+            q_targets = rewards.reshape(-1, 1) + gamma * (1 - terminated).reshape(-1, 1) * next_q_preds
         loss = torch.nn.functional.mse_loss(q_preds, q_targets)
         # update
         self._optimizer.zero_grad()
