@@ -124,9 +124,10 @@ class Agent:
         next_observations = torch.tensor([experience.next_observation for experience in experiences])
         next_actions = torch.tensor([experience.next_action for experience in experiences])
         rewards = torch.tensor([experience.reward for experience in experiences]).unsqueeze(1)
-        terminated = torch.tensor([experience.terminated for experience in experiences],
-                                  dtype=torch.float32,
-                                  ).unsqueeze(1)
+        terminated = torch.tensor(
+            [experience.terminated for experience in experiences],
+            dtype=torch.float32,
+        ).unsqueeze(1)
 
         # q preds
         x_tensor = torch.cat((observations, actions.unsqueeze(1)), dim=1)
