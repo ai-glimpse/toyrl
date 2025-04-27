@@ -1,4 +1,4 @@
-from dataclasses import asdict, dataclass, field  # noqa
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 import gymnasium as gym
@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import wandb  # noqa
+import wandb
 
 
 class PolicyNet(nn.Module):
@@ -123,8 +123,10 @@ class Agent:
 
         next_observations = torch.tensor([experience.next_observation for experience in experiences])
         next_actions = torch.tensor([experience.next_action for experience in experiences])
-        rewards = torch.tensor([experience.reward for experience in experiences])
-        terminated = torch.tensor([experience.terminated for experience in experiences], dtype=torch.float32)
+        rewards = torch.tensor([experience.reward for experience in experiences]).unsqueeze(1)
+        terminated = torch.tensor([experience.terminated for experience in experiences],
+                                  dtype=torch.float32,
+                                  ).unsqueeze(1)
 
         # q preds
         x_tensor = torch.cat((observations, actions.unsqueeze(1)), dim=1)
@@ -133,7 +135,7 @@ class Agent:
         with torch.no_grad():
             x_tensor = torch.cat((next_observations, next_actions.unsqueeze(1)), dim=1)
             next_q_preds = self._policy_net(x_tensor)
-            q_targets = rewards.reshape(-1, 1) + gamma * (1 - terminated).reshape(-1, 1) * next_q_preds
+            q_targets = rewards + gamma * (1 - terminated) * next_q_preds
         loss = torch.nn.functional.mse_loss(q_preds, q_targets)
         # update
         self._optimizer.zero_grad()
@@ -176,13 +178,13 @@ class SARSATrainer:
         self.gamma = config.train.gamma
         self.solved_threshold = config.env.solved_threshold
 
-        # wandb.init(
-        #     # set the wandb project where this run will be logged
-        #     project="SARSA",
-        #     name=f"[{config.env.env_name}]lr={config.train.learning_rate}",
-        #     # track hyperparameters and run metadata
-        #     config=asdict(config),
-        # )
+        wandb.init(
+            # set the wandb project where this run will be logged
+            project="SARSA",
+            name=f"[{config.env.env_name}]lr={config.train.learning_rate}",
+            # track hyperparameters and run metadata
+            config=asdict(config),
+        )
 
     def train(self) -> None:
         epsilon = 1.0
@@ -214,13 +216,13 @@ class SARSATrainer:
                 f"Episode {episode}, epsilon: {epsilon}, loss: {loss}, total_reward: {total_reward}, solved: {solved}"
             )
 
-            # wandb.log(
-            #     {
-            #         "episode": episode,
-            #         "loss": loss,
-            #         "total_reward": total_reward,
-            #     }
-            # )
+            wandb.log(
+                {
+                    "episode": episode,
+                    "loss": loss,
+                    "total_reward": total_reward,
+                }
+            )
 
 
 if __name__ == "__main__":
