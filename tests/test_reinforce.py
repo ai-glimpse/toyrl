@@ -2,17 +2,16 @@
 
 import gymnasium as gym
 import numpy as np
-import pytest
 import torch
 
 from toyrl.reinforce import (
     Agent,
-    ReinforceConfig,
     EnvConfig,
     Experience,
     PolicyNet,
-    ReplayBuffer,
+    ReinforceConfig,
     ReinforceTrainer,
+    ReplayBuffer,
     TrainConfig,
 )
 

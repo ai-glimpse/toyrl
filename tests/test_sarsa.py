@@ -2,16 +2,15 @@
 
 import gymnasium as gym
 import numpy as np
-import pytest
 import torch
 
 from toyrl.sarsa import (
     Agent,
-    SarsaConfig,
     EnvConfig,
     Experience,
     PolicyNet,
     ReplayBuffer,
+    SarsaConfig,
     SarsaTrainer,
     TrainConfig,
 )

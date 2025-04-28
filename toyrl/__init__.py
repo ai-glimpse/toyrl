@@ -1,4 +1,4 @@
-from .reinforce import ReinforceTrainer, ReinforceConfig
-from .sarsa import SarsaTrainer, SarsaConfig
+from .reinforce import ReinforceConfig, ReinforceTrainer
+from .sarsa import SarsaConfig, SarsaTrainer
 
 __all__ = ["ReinforceTrainer", "ReinforceConfig", "SarsaTrainer", "SarsaConfig"]
