@@ -195,7 +195,8 @@ class SARSATrainer:
             q_values = []
             while not (terminated or truncated):
                 action, q_value = self.agent.act(observation, epsilon)
-                q_values.append(q_value)
+                if q_value is not None:
+                    q_values.append(q_value)
                 next_observation, reward, terminated, truncated, _ = self.env.step(action)
                 experience = Experience(
                     observation=observation,
@@ -214,7 +215,7 @@ class SARSATrainer:
             solved = total_reward > self.solved_threshold
             self.agent.onpolicy_reset()
             epsilon = max(0.01, epsilon * 0.997)
-            q_value_mean = np.nanmean(np.array(q_values, dtype=np.float32))
+            q_value_mean = np.mean(q_values)
 
             print(
                 f"Episode {episode}, epsilon: {epsilon}, loss: {loss}, q_value_mean: {q_value_mean}, "
