@@ -167,9 +167,10 @@ class Config:
 class SARSATrainer:
     def __init__(self, config: Config) -> None:
         self.env = gym.make(config.env.env_name, render_mode=config.env.render_mode)
+        if isinstance(self.env.action_space, gym.spaces.Discrete) is False:
+            raise ValueError("Only discrete action space is supported.")
         env_dim = self.env.observation_space.shape[0]  # type: ignore[index]
         action_num = self.env.action_space.n  # type: ignore[attr-defined]
-        # TODO: better param
         policy_net = PolicyNet(env_dim=env_dim, action_dim=1, action_num=action_num)
         optimizer = optim.Adam(policy_net.parameters(), lr=config.train.learning_rate)
         self.agent = Agent(policy_net=policy_net, optimizer=optimizer)
