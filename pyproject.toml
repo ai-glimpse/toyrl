@@ -34,7 +34,6 @@ dev = [
     "pytest-cov",
     "pytest-sugar",
     "hypothesis>=6.112.0",
-    "commitizen",
 ]
 docs = [
     "mkdocs",
@@ -49,10 +48,10 @@ docs = [
 ]
 
 [project.urls]
-"Homepage" = "https://shenxiangzhuang.github.io/toyrl"
-"Bug Tracker" = "https://shenxiangzhuang.github.io/toyrl/issues"
-"Documentation" = "https://shenxiangzhuang.github.io/toyrl"
-"Source Code" = "https://github.com/shenxiangzhuang/toyrl"
+"Homepage" = "https://ai-glimpse.github.io/toyrl"
+"Bug Tracker" = "https://github.com/ai-glimpse/toyrl/issues"
+"Documentation" = "https://ai-glimpse.github.io/toyrl"
+"Source Code" = "https://github.com/ai-glimpse/toyrl"
 "Release Notes" = "https://github.com/ai-glimpse/toyrl/releases"
 
 [tool.setuptools]
@@ -64,23 +63,12 @@ requires = ["setuptools >= 61.0"]
 build-backend = "setuptools.build_meta"
 
 [dependency-groups]
-dev = [
-    "ipython>=9.1.0",
-]
+dev = ["ipython>=9.1.0"]
 
 
 [tool.setuptools.packages.find]
 include = ["toyrl*"]
 namespaces = false
-
-[tool.commitizen]
-name = "cz_conventional_commits"
-tag_format = "$version"
-version_scheme = "semver"
-version_provider = "poetry"
-update_changelog_on_bump = true
-major_version_zero = true
-changelog_incremental = true
 
 
 [tool.mypy]
@@ -138,9 +126,7 @@ select = [
     'D',  # pydocstyle
     'UP', # pyupgrade
 ]
-ignore = [
-    "D"
-]
+ignore = ["D"]
 pydocstyle = { convention = "google" }
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
