@@ -161,13 +161,14 @@ class TrainConfig:
 
 
 @dataclass
-class Config:
+class SarsaConfig:
     env: EnvConfig = field(default_factory=EnvConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
 
 
-class SARSATrainer:
-    def __init__(self, config: Config) -> None:
+class SarsaTrainer:
+    def __init__(self, config: SarsaConfig) -> None:
+        self.config = config
         self.env = gym.make(config.env.env_name, render_mode=config.env.render_mode)
         if isinstance(self.env.action_space, gym.spaces.Discrete) is False:
             raise ValueError("Only discrete action space is supported.")
@@ -235,9 +236,9 @@ class SARSATrainer:
 
 
 if __name__ == "__main__":
-    default_config = Config(
+    default_config = SarsaConfig(
         env=EnvConfig(env_name="CartPole-v1", render_mode=None, solved_threshold=475.0),
         train=TrainConfig(num_episodes=100000, learning_rate=0.01, log_wandb=True),
     )
-    trainer = SARSATrainer(default_config)
+    trainer = SarsaTrainer(default_config)
     trainer.train()

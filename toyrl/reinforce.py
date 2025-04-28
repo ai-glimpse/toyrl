@@ -122,13 +122,14 @@ class TrainConfig:
 
 
 @dataclass
-class Config:
+class ReinforceConfig:
     env: EnvConfig = field(default_factory=EnvConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
 
 
 class ReinforceTrainer:
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: ReinforceConfig) -> None:
+        self.config = config
         self.env = gym.make(config.env.env_name, render_mode=config.env.render_mode)
         env_in_dim = self.env.observation_space.shape[0]  # type: ignore[index]
         env_out_dim = self.env.action_space.n  # type: ignore[attr-defined]
@@ -188,7 +189,7 @@ class ReinforceTrainer:
 
 
 if __name__ == "__main__":
-    default_config = Config(
+    default_config = ReinforceConfig(
         env=EnvConfig(env_name="CartPole-v1", render_mode=None, solved_threshold=475.0),
         train=TrainConfig(num_episodes=100000, learning_rate=0.002, with_baseline=True, log_wandb=True),
     )
