@@ -19,7 +19,7 @@ from toyrl.reinforce import (
 def test_policy_net():
     """Test the PolicyNet class."""
     in_dim, out_dim = 4, 2
-    net = PolicyNet(in_dim=in_dim, out_dim=out_dim)
+    net = PolicyNet(env_dim=in_dim, action_num=out_dim)
 
     # Test forward pass
     x = torch.randn(in_dim)
@@ -60,7 +60,7 @@ def test_replay_buffer():
 def test_agent_creation():
     """Test creating an agent."""
     in_dim, out_dim = 4, 2
-    policy_net = PolicyNet(in_dim=in_dim, out_dim=out_dim)
+    policy_net = PolicyNet(env_dim=in_dim, action_num=out_dim)
     optimizer = torch.optim.Adam(policy_net.parameters(), lr=0.01)
 
     agent = Agent(policy_net=policy_net, optimizer=optimizer)
@@ -74,7 +74,7 @@ def test_agent_creation():
 def test_agent_act():
     """Test the agent's act method."""
     in_dim, out_dim = 4, 2
-    policy_net = PolicyNet(in_dim=in_dim, out_dim=out_dim)
+    policy_net = PolicyNet(env_dim=in_dim, action_num=out_dim)
     optimizer = torch.optim.Adam(policy_net.parameters(), lr=0.01)
 
     agent = Agent(policy_net=policy_net, optimizer=optimizer)

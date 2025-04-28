@@ -10,12 +10,12 @@ import wandb
 
 
 class PolicyNet(nn.Module):
-    def __init__(self, in_dim: int, out_dim: int) -> None:
+    def __init__(self, env_dim: int, action_num: int) -> None:
         super().__init__()
         layers = [
-            nn.Linear(in_dim, 64),
+            nn.Linear(env_dim, 64),
             nn.ReLU(),
-            nn.Linear(64, out_dim),
+            nn.Linear(64, action_num),
         ]
         self.model = nn.Sequential(*layers)
         self.train()
@@ -132,7 +132,7 @@ class ReinforceTrainer:
         self.env = gym.make(config.env.env_name, render_mode=config.env.render_mode)
         env_dim = self.env.observation_space.shape[0]  # type: ignore[index]
         action_num = self.env.action_space.n  # type: ignore[attr-defined]
-        policy_net = PolicyNet(in_dim=env_dim, out_dim=action_num)
+        policy_net = PolicyNet(env_dim=env_dim, action_num=action_num)
         optimizer = optim.Adam(policy_net.parameters(), lr=config.train.learning_rate)
         self.agent = Agent(policy_net=policy_net, optimizer=optimizer)
 
