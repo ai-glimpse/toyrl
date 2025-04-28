@@ -118,7 +118,7 @@ class TrainConfig:
     num_episodes: int = 500
     learning_rate: float = 0.01
     with_baseline: bool = True
-
+    log_wandb: bool = False
 
 @dataclass
 class Config:
@@ -140,13 +140,13 @@ class ReinforceTrainer:
         self.gamma = config.train.gamma
         self.with_baseline = config.train.with_baseline
         self.solved_threshold = config.env.solved_threshold
-
-        wandb.init(
-            # set the wandb project where this run will be logged
-            project="Reinforce",
-            name=f"[{config.env.env_name}]lr={config.train.learning_rate}, baseline={config.train.with_baseline}",
-            # track hyperparameters and run metadata
-            config=asdict(config),
+        if config.train.log_wandb:
+            wandb.init(
+                # set the wandb project where this run will be logged
+                project="Reinforce",
+                name=f"[{config.env.env_name}]lr={config.train.learning_rate}, baseline={config.train.with_baseline}",
+                # track hyperparameters and run metadata
+                config=asdict(config),
         )
 
     def train(self) -> None:
@@ -176,19 +176,20 @@ class ReinforceTrainer:
             solved = total_reward > self.solved_threshold
             self.agent.onpolicy_reset()
             print(f"Episode {epi}, loss: {loss}, total_reward: {total_reward}, solved: {solved}")
-            wandb.log(
-                {
-                    "episode": epi,
-                    "loss": loss,
-                    "total_reward": total_reward,
-                }
-            )
+            if self.config.train.log_wandb:
+                wandb.log(
+                    {
+                        "episode": epi,
+                        "loss": loss,
+                        "total_reward": total_reward,
+                    }
+                )
 
 
 if __name__ == "__main__":
     default_config = Config(
         env=EnvConfig(env_name="CartPole-v1", render_mode=None, solved_threshold=475.0),
-        train=TrainConfig(num_episodes=100000, learning_rate=0.002, with_baseline=True),
+        train=TrainConfig(num_episodes=100000, learning_rate=0.002, with_baseline=True, log_wandb=True),
     )
     trainer = ReinforceTrainer(default_config)
     trainer.train()
