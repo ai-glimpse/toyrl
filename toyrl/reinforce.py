@@ -130,10 +130,9 @@ class ReinforceTrainer:
     def __init__(self, config: ReinforceConfig) -> None:
         self.config = config
         self.env = gym.make(config.env.env_name, render_mode=config.env.render_mode)
-        env_in_dim = self.env.observation_space.shape[0]  # type: ignore[index]
-        env_out_dim = self.env.action_space.n  # type: ignore[attr-defined]
-
-        policy_net = PolicyNet(in_dim=env_in_dim, out_dim=env_out_dim)
+        env_dim = self.env.observation_space.shape[0]  # type: ignore[index]
+        action_num = self.env.action_space.n  # type: ignore[attr-defined]
+        policy_net = PolicyNet(in_dim=env_dim, out_dim=action_num)
         optimizer = optim.Adam(policy_net.parameters(), lr=config.train.learning_rate)
         self.agent = Agent(policy_net=policy_net, optimizer=optimizer)
 
@@ -168,6 +167,8 @@ class ReinforceTrainer:
                 )
                 self.agent.add_experience(experience)
                 observation = next_observation
+                if self.config.env.render_mode is not None:
+                    self.env.render()
                 self.env.render()
             loss = self.agent.policy_update(
                 gamma=self.gamma,
