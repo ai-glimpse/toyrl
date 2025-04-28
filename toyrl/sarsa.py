@@ -173,7 +173,7 @@ class SARSATrainer:
         env_dim = self.env.observation_space.shape[0]  # type: ignore[index]
         action_num = self.env.action_space.n  # type: ignore[attr-defined]
         policy_net = PolicyNet(env_dim=env_dim, action_dim=1, action_num=action_num)
-        optimizer = optim.Adam(policy_net.parameters(), lr=config.train.learning_rate)
+        optimizer = optim.RMSprop(policy_net.parameters(), lr=config.train.learning_rate)
         self.agent = Agent(policy_net=policy_net, optimizer=optimizer)
 
         self.num_episodes = config.train.num_episodes
@@ -183,7 +183,7 @@ class SARSATrainer:
         wandb.init(
             # set the wandb project where this run will be logged
             project="SARSA",
-            name=f"[{config.env.env_name}]lr={config.train.learning_rate}",
+            name=f"[{config.env.env_name}],lr={config.train.learning_rate}",
             # track hyperparameters and run metadata
             config=asdict(config),
         )
@@ -236,7 +236,7 @@ class SARSATrainer:
 if __name__ == "__main__":
     default_config = Config(
         env=EnvConfig(env_name="CartPole-v1", render_mode=None, solved_threshold=475.0),
-        train=TrainConfig(num_episodes=100000, learning_rate=0.002),
+        train=TrainConfig(num_episodes=100000, learning_rate=0.01),
     )
     trainer = SARSATrainer(default_config)
     trainer.train()
