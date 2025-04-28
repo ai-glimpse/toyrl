@@ -32,6 +32,9 @@ jobs:
       - name: Lint with Mypy
         run: uv run mypy .
 
+      # also print ruff version
+      - name: Print Ruff version
+        run: uv run ruff --version
       - name: Lint with Ruff
         run: uv run ruff check
 
