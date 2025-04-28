@@ -1,1 +1,1 @@
-"""Test module for toyrl.""" 
+"""Test module for toyrl."""
