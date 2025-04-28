@@ -70,7 +70,6 @@ dev = ["ipython>=9.1.0"]
 include = ["toyrl*"]
 namespaces = false
 
-
 [tool.mypy]
 ignore_missing_imports = true
 #strict = true
