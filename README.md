@@ -24,6 +24,6 @@ pip install toyrl
 
 ## Algorithms
 
-- [x] Reinforce
+- [x] REINFORCE
 - [x] SARSA
 - [ ] DQN
