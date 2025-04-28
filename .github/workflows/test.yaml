@@ -34,7 +34,7 @@ jobs:
 
       # also print ruff version
       - name: Print Ruff version
-        run: ruff --version
+        run: uv run ruff --version
       - name: Lint with Ruff
         run: uv run ruff check
 
