@@ -87,6 +87,9 @@ changelog_incremental = true
 ignore_missing_imports = true
 #strict = true
 
+[[tool.mypy.overrides]]
+module = ["wandb.*"]
+follow_imports = "skip"
 
 # Ruff configuration: https://docs.astral.sh/ruff/configuration/#configuring-ruff
 [tool.ruff]
