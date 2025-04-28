@@ -113,14 +113,13 @@ class Agent:
                 if q > max_q:
                     max_q = q
                     best_action = action
-        return best_action, q.item()
+        return best_action, max_q.item()
 
     def policy_update(self, gamma: float) -> float:
         experiences = self._replay_buffer.sample()
 
         observations = torch.tensor([experience.observation for experience in experiences])
-        actions = torch.tensor([experience.action for experience in experiences])
-
+        actions = torch.tensor([experience.action for experience in experiences], dtype=torch.float32)
         next_observations = torch.tensor([experience.next_observation for experience in experiences])
         next_actions = torch.tensor([experience.next_action for experience in experiences])
         rewards = torch.tensor([experience.reward for experience in experiences]).unsqueeze(1)
@@ -207,10 +206,9 @@ class SARSATrainer:
                 )
                 self.agent.add_experience(experience)
                 observation = next_observation
-                self.env.render()
-            loss = self.agent.policy_update(
-                gamma=self.gamma,
-            )
+                if self.env.render_mode is not None:
+                    self.env.render()
+            loss = self.agent.policy_update(gamma=self.gamma)
             total_reward = self.agent.get_buffer_total_reward()
             solved = total_reward > self.solved_threshold
             self.agent.onpolicy_reset()
