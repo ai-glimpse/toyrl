@@ -184,10 +184,10 @@ class SARSATrainer:
             wandb.init(
                 # set the wandb project where this run will be logged
                 project="SARSA",
-            name=f"[{config.env.env_name}],lr={config.train.learning_rate}",
-            # track hyperparameters and run metadata
-            config=asdict(config),
-        )
+                name=f"[{config.env.env_name}],lr={config.train.learning_rate}",
+                # track hyperparameters and run metadata
+                config=asdict(config),
+            )
 
     def train(self) -> None:
         epsilon = 1.0

@@ -120,6 +120,7 @@ class TrainConfig:
     with_baseline: bool = True
     log_wandb: bool = False
 
+
 @dataclass
 class Config:
     env: EnvConfig = field(default_factory=EnvConfig)
@@ -147,7 +148,7 @@ class ReinforceTrainer:
                 name=f"[{config.env.env_name}]lr={config.train.learning_rate}, baseline={config.train.with_baseline}",
                 # track hyperparameters and run metadata
                 config=asdict(config),
-        )
+            )
 
     def train(self) -> None:
         for epi in range(self.num_episodes):
