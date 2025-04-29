@@ -159,3 +159,52 @@ docstring-code-format = true
 # This only has an effect when the `docstring-code-format` setting is
 # enabled.
 docstring-code-line-length = "dynamic"
+
+[tool.coverage.run]
+source = ["toyrl"]
+omit = ["tests/*", "*/wandb/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    # Skip any pragma comments
+    "pragma: no cover",
+
+    # Skip abstract methods
+    "@abstractmethod",
+    "@abc.abstractmethod",
+
+    # Skip debug-only code
+    "def __repr__",
+    "if self.debug",
+
+    # Skip defensive assertion code
+    "raise NotImplementedError",
+    "raise AssertionError",
+
+    # Skip type checking blocks
+    "if TYPE_CHECKING:",
+    "if typing.TYPE_CHECKING:",
+
+    # Skip main execution blocks
+    "if __name__ == .__main__.:",
+
+    # Skip dataclass boilerplate
+    "@dataclass",
+
+    # Skip test/private functions
+    "def _",
+
+    # Skip pass statements
+    "pass",
+
+    # Skip wandb related lines
+    "wandb.log",
+    "wandb.init",
+    "if config.train.log_wandb:",
+    "if.*log_wandb.*:",
+
+    # Skip rendering lines
+    "env.render",
+    "self.env.render",
+    "if.*render.*:",
+]
