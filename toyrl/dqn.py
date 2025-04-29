@@ -1,3 +1,4 @@
+import random
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
@@ -47,22 +48,29 @@ class Experience:
 class ReplayBuffer:
     replay_buffer_size: int = 10000
     buffer: list[Experience] = field(default_factory=list)
+    _head_pointer: int = 0
 
     def __len__(self) -> int:
         return len(self.buffer)
 
     def add_experience(self, experience: Experience) -> None:
-        if len(self.buffer) >= self.replay_buffer_size:
-            self.buffer.pop(0)
-        self.buffer.append(experience)
+        if len(self.buffer) < self.replay_buffer_size:
+            # Buffer not full yet, append new experience
+            self.buffer.append(experience)
+        else:
+            # Buffer full, overwrite oldest experience
+            index = self._head_pointer % self.replay_buffer_size
+            self.buffer[index] = experience
+
+        # Increment pointer
+        self._head_pointer += 1
 
     def reset(self) -> None:
         self.buffer = []
+        self._head_pointer = 0
 
     def sample(self, batch_size: int) -> list[Experience]:
-        real_batch_size = min(batch_size, len(self.buffer))
-        indices = np.random.choice(len(self.buffer), real_batch_size, replace=False)
-        return [self.buffer[i] for i in indices]
+        return random.sample(self.buffer, min(batch_size, len(self.buffer)))
 
 
 class Agent:
