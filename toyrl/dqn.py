@@ -45,7 +45,7 @@ class Experience:
 
 @dataclass
 class ReplayBuffer:
-    replay_buffer_size: int = 100000
+    replay_buffer_size: int = 10000
     buffer: list[Experience] = field(default_factory=list)
 
     def __len__(self) -> int:
@@ -120,17 +120,18 @@ class Agent:
 
         next_actions = torch.argmax(action_probs, dim=1)
         x_tensor = torch.cat((next_observations, next_actions.unsqueeze(1)), dim=1)
-        if self._target_net is None:  # Vanilla DQN
-            next_q_preds = self._policy_net(x_tensor)
-        else:  # Double DQN
-            next_q_preds = self._target_net(x_tensor)
+        with torch.no_grad():
+            if self._target_net is None:  # Vanilla DQN
+                next_q_preds = self._policy_net(x_tensor)
+            else:  # Double DQN
+                next_q_preds = self._target_net(x_tensor)
         q_targets = rewards + gamma * (1 - terminated) * next_q_preds
         loss = torch.nn.functional.mse_loss(q_preds, q_targets)
         # update
         self._optimizer.zero_grad()
         loss.backward()
         # In-place gradient clipping
-        torch.nn.utils.clip_grad_value_(self._policy_net.parameters(), 10)
+        # torch.nn.utils.clip_grad_value_(self._policy_net.parameters(), 10)
         self._optimizer.step()
         return loss.item()
 
@@ -195,7 +196,7 @@ class DqnTrainer:
         action_num = self.env.action_space.n  # type: ignore[attr-defined]
 
         policy_net = PolicyNet(env_dim=env_dim, action_dim=1, action_num=action_num)
-        optimizer = optim.Adam(policy_net.parameters(), lr=config.train.learning_rate)
+        optimizer = optim.RMSprop(policy_net.parameters(), lr=config.train.learning_rate)
         if config.train.with_target_net:
             target_net = PolicyNet(env_dim=env_dim, action_dim=1, action_num=action_num)
             target_net.load_state_dict(policy_net.state_dict())
@@ -252,12 +253,12 @@ class DqnTrainer:
                 if self.env.render_mode is not None:
                     self.env.render()
             loss_total = 0.0
-            for b in range(self.config.train.update_per_batch):
+            for b in range(self.config.train.batch_pre_train):
                 batch_experiences = self.agent.sample(self.config.train.batch_size)
                 for u in range(self.config.train.update_per_batch):
                     loss = self.agent.policy_update(gamma=self.gamma, experiences=batch_experiences)
                     loss_total += loss
-            episode_loss_mean = loss_total / (self.config.train.update_per_batch * self.config.train.batch_size)
+            episode_loss_mean = loss_total / (self.config.train.batch_pre_train * self.config.train.update_per_batch)
             q_value_mean = np.mean(q_values)
             # decay tau
             tau = max(0.5, tau * 0.999)
@@ -285,7 +286,7 @@ if __name__ == "__main__":
         env=EnvConfig(env_name="CartPole-v1", render_mode=None, solved_threshold=475.0),
         train=TrainConfig(
             num_episodes=100000,
-            learning_rate=0.002,
+            learning_rate=0.01,
             with_target_net=False,
             beta=0.0,
             target_net_update_freq=10,
