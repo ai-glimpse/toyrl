@@ -66,8 +66,15 @@ class ReplayBuffer:
 
 
 class Agent:
-    def __init__(self, policy_net: PolicyNet, optimizer: torch.optim.Optimizer, replay_buffer_size: int) -> None:
+    def __init__(
+        self,
+        policy_net: PolicyNet,
+        target_net: PolicyNet | None,
+        optimizer: torch.optim.Optimizer,
+        replay_buffer_size: int,
+    ) -> None:
         self._policy_net = policy_net
+        self._target_net = target_net
         self._optimizer = optimizer
         self._replay_buffer = ReplayBuffer(replay_buffer_size)
         self._action_num = policy_net.action_num
@@ -108,7 +115,10 @@ class Agent:
             for next_action in range(self._action_num):
                 next_actions = torch.tensor([next_action] * len(experiences), dtype=torch.float32)
                 x_tensor = torch.cat((next_observations, next_actions.unsqueeze(1)), dim=1)
-                next_q_preds = self._policy_net(x_tensor)
+                if self._target_net is not None:
+                    next_q_preds = self._target_net(x_tensor)
+                else:
+                    next_q_preds = self._policy_net(x_tensor)
                 if next_action == 0:  # first action
                     q_targets = rewards + gamma * (1 - terminated) * next_q_preds
                 else:  # max action
@@ -117,8 +127,17 @@ class Agent:
         # update
         self._optimizer.zero_grad()
         loss.backward()
+        # In-place gradient clipping
+        # torch.nn.utils.clip_grad_value_(self._policy_net.parameters(), 100)
         self._optimizer.step()
         return loss.item()
+
+    def palyak_update(self, beta: float) -> None:
+        if self._target_net is not None:
+            for target_param, param in zip(self._target_net.parameters(), self._policy_net.parameters()):
+                target_param.data.copy_(beta * target_param.data + (1 - beta) * param.data)
+        else:
+            raise ValueError("Target net is not set.")
 
 
 @dataclass
@@ -146,6 +165,14 @@ class TrainConfig:
 
     learning_rate: float = 0.01
     """The learning rate for the optimizer."""
+
+    with_target_net: bool = False
+    """Whether to use a target network for training."""
+    target_net_update_freq: int = 10  # F
+    """The frequency of updating the target network."""
+    beta: float = 0.0
+    """The target network update rate(Polyak update)."""
+
     log_wandb: bool = False
     """Whether to log the training process to Weights and Biases."""
 
@@ -164,10 +191,17 @@ class DqnTrainer:
             raise ValueError("Only discrete action space is supported.")
         env_dim = self.env.observation_space.shape[0]  # type: ignore[index]
         action_num = self.env.action_space.n  # type: ignore[attr-defined]
+
         policy_net = PolicyNet(env_dim=env_dim, action_dim=1, action_num=action_num)
-        optimizer = optim.RMSprop(policy_net.parameters(), lr=config.train.learning_rate)
+        optimizer = optim.Adam(policy_net.parameters(), lr=config.train.learning_rate)
+        if config.train.with_target_net:
+            target_net = PolicyNet(env_dim=env_dim, action_dim=1, action_num=action_num)
+            target_net.load_state_dict(policy_net.state_dict())
+        else:
+            target_net = None
         self.agent = Agent(
             policy_net=policy_net,
+            target_net=target_net,
             optimizer=optimizer,
             replay_buffer_size=config.train.replay_buffer_size,
         )
@@ -178,11 +212,16 @@ class DqnTrainer:
         if config.train.log_wandb:
             wandb.init(
                 # set the wandb project where this run will be logged
-                project="DQN",
+                project=self._get_dqn_name(),
                 name=f"[{config.env.env_name}],lr={config.train.learning_rate}",
                 # track hyperparameters and run metadata
                 config=asdict(config),
             )
+
+    def _get_dqn_name(self) -> str:
+        if self.config.train.with_target_net:
+            return "Double DQN"
+        return "DQN"
 
     def train(self) -> None:
         tau = 5.0
@@ -217,22 +256,32 @@ class DqnTrainer:
                     loss = self.agent.policy_update(gamma=self.gamma, experiences=batch_experiences)
                     loss_total += loss
             episode_loss_mean = loss_total / (self.config.train.update_per_batch * self.config.train.batch_size)
-            print(f"Episode {episode}, tau: {tau}, loss: {episode_loss_mean}, episode_reward: {episode_reward}")
+            q_value_mean = np.mean(q_values)
+            # decay tau
+            tau = max(0.5, tau * 0.999)
+            # update target net
+            if episode % self.config.train.target_net_update_freq == 0:
+                self.agent.palyak_update(beta=self.config.train.beta)
+
+            print(
+                f"Episode {episode}, tau: {tau}, loss: {episode_loss_mean}, "
+                f"q_value_mean: {q_value_mean}, episode_reward: {episode_reward}"
+            )
             if self.config.train.log_wandb:
                 wandb.log(
                     {
                         "episode": episode,
                         "episode_loss_mean": episode_loss_mean,
+                        "q_value_mean": q_value_mean,
                         "episode_reward": episode_reward,
                     }
                 )
-            tau = max(0.5, tau * 0.999)
 
 
 if __name__ == "__main__":
     simple_config = DqnConfig(
         env=EnvConfig(env_name="CartPole-v1", render_mode=None, solved_threshold=475.0),
-        train=TrainConfig(num_episodes=100000, learning_rate=0.01, log_wandb=True),
+        train=TrainConfig(num_episodes=100000, learning_rate=0.01, with_target_net=True, beta=0.0, log_wandb=True),
     )
     trainer = DqnTrainer(simple_config)
     trainer.train()
