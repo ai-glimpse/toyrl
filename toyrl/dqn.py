@@ -262,7 +262,7 @@ class DqnTrainer:
             # decay tau
             tau = max(0.5, tau * 0.999)
             # update target net
-            if episode % self.config.train.target_net_update_freq == 0:
+            if self.config.train.with_target_net and episode % self.config.train.target_net_update_freq == 0:
                 self.agent.polyak_update(beta=self.config.train.beta)
 
             print(
@@ -286,7 +286,7 @@ if __name__ == "__main__":
         train=TrainConfig(
             num_episodes=100000,
             learning_rate=0.002,
-            with_target_net=True,
+            with_target_net=False,
             beta=0.0,
             target_net_update_freq=10,
             log_wandb=True,
