@@ -131,15 +131,23 @@ class EnvConfig:
 @dataclass
 class TrainConfig:
     gamma: float = 0.999
+    """The discount factor for future rewards."""
     replay_buffer_size: int = 10000  # K
+    """The size of the replay buffer."""
 
     num_episodes: int = 500
+    """The number of episodes to train the agent."""
     batch_pre_train: int = 4  # B
+    """The number of batches to pre-train the agent."""
     batch_size: int = 32  # N
+    """The size of each batch."""
     update_per_batch: int = 4  # U
+    """The number of updates per batch."""
 
     learning_rate: float = 0.01
+    """The learning rate for the optimizer."""
     log_wandb: bool = False
+    """Whether to log the training process to Weights and Biases."""
 
 
 @dataclass
@@ -148,7 +156,7 @@ class DqnConfig:
     train: TrainConfig = field(default_factory=TrainConfig)
 
 
-class QqnTrainer:
+class DqnTrainer:
     def __init__(self, config: DqnConfig) -> None:
         self.config = config
         self.env = gym.make(config.env.env_name, render_mode=config.env.render_mode)
@@ -222,9 +230,9 @@ class QqnTrainer:
 
 
 if __name__ == "__main__":
-    default_config = DqnConfig(
+    simple_config = DqnConfig(
         env=EnvConfig(env_name="CartPole-v1", render_mode=None, solved_threshold=475.0),
         train=TrainConfig(num_episodes=100000, learning_rate=0.01, log_wandb=True),
     )
-    trainer = QqnTrainer(default_config)
+    trainer = DqnTrainer(simple_config)
     trainer.train()
