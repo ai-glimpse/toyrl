@@ -91,7 +91,7 @@ class Agent:
                 logits[action] = self._policy_net(x_) / tao
         next_action_prob = logits.softmax(dim=0)
         next_action = torch.distributions.Categorical(probs=next_action_prob).sample().item()
-        q_value = next_action_prob[next_action].item()
+        q_value = logits[next_action].item()
         return next_action, q_value
 
     def sample(self, batch_size: int) -> list[Experience]:
@@ -111,28 +111,30 @@ class Agent:
         x_tensor = torch.cat((observations, actions.unsqueeze(1)), dim=1)
         q_preds = self._policy_net(x_tensor)
 
+        action_probs = torch.empty(size=(len(experiences), self._action_num))
         with torch.no_grad():
             for next_action in range(self._action_num):
                 next_actions = torch.tensor([next_action] * len(experiences), dtype=torch.float32)
                 x_tensor = torch.cat((next_observations, next_actions.unsqueeze(1)), dim=1)
-                if self._target_net is not None:
-                    next_q_preds = self._target_net(x_tensor)
-                else:
-                    next_q_preds = self._policy_net(x_tensor)
-                if next_action == 0:  # first action
-                    q_targets = rewards + gamma * (1 - terminated) * next_q_preds
-                else:  # max action
-                    q_targets = torch.max(q_targets, rewards + gamma * (1 - terminated) * next_q_preds)
+                action_probs[:, next_action] = self._policy_net(x_tensor).squeeze(1)
+
+        next_actions = torch.argmax(action_probs, dim=1)
+        x_tensor = torch.cat((next_observations, next_actions.unsqueeze(1)), dim=1)
+        if self._target_net is None:  # Vanilla DQN
+            next_q_preds = self._policy_net(x_tensor)
+        else:  # Double DQN
+            next_q_preds = self._target_net(x_tensor)
+        q_targets = rewards + gamma * (1 - terminated) * next_q_preds
         loss = torch.nn.functional.mse_loss(q_preds, q_targets)
         # update
         self._optimizer.zero_grad()
         loss.backward()
         # In-place gradient clipping
-        # torch.nn.utils.clip_grad_value_(self._policy_net.parameters(), 100)
+        torch.nn.utils.clip_grad_value_(self._policy_net.parameters(), 10)
         self._optimizer.step()
         return loss.item()
 
-    def palyak_update(self, beta: float) -> None:
+    def polyak_update(self, beta: float) -> None:
         if self._target_net is not None:
             for target_param, param in zip(self._target_net.parameters(), self._policy_net.parameters()):
                 target_param.data.copy_(beta * target_param.data + (1 - beta) * param.data)
@@ -261,7 +263,7 @@ class DqnTrainer:
             tau = max(0.5, tau * 0.999)
             # update target net
             if episode % self.config.train.target_net_update_freq == 0:
-                self.agent.palyak_update(beta=self.config.train.beta)
+                self.agent.polyak_update(beta=self.config.train.beta)
 
             print(
                 f"Episode {episode}, tau: {tau}, loss: {episode_loss_mean}, "
@@ -281,7 +283,14 @@ class DqnTrainer:
 if __name__ == "__main__":
     simple_config = DqnConfig(
         env=EnvConfig(env_name="CartPole-v1", render_mode=None, solved_threshold=475.0),
-        train=TrainConfig(num_episodes=100000, learning_rate=0.01, with_target_net=True, beta=0.0, log_wandb=True),
+        train=TrainConfig(
+            num_episodes=100000,
+            learning_rate=0.002,
+            with_target_net=True,
+            beta=0.0,
+            target_net_update_freq=10,
+            log_wandb=True,
+        ),
     )
     trainer = DqnTrainer(simple_config)
     trainer.train()
