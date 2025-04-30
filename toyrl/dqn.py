@@ -111,8 +111,7 @@ class Agent:
         )
 
         # q preds
-        q_preds = self._policy_net(observations)
-        action_q_preds = q_preds.gather(1, actions.long().unsqueeze(1)).squeeze(1)
+        action_q_preds = self._policy_net(observations).gather(1, actions.long().unsqueeze(1)).squeeze(1)
 
         with torch.no_grad():
             next_action_logits = self._policy_net(next_observations)
@@ -120,10 +119,11 @@ class Agent:
             if self._target_net is None:  # Vanilla DQN
                 next_action_q_preds = torch.gather(next_action_logits, 1, next_actions.unsqueeze(1)).squeeze(1)
             else:  # Double DQN
-                next_q_preds = self._target_net(next_observations)
-                next_action_q_preds = torch.gather(next_q_preds, 1, next_actions.unsqueeze(1)).squeeze(1)
-        next_action_q_targets = rewards + gamma * (1 - terminated) * next_action_q_preds
-        loss = torch.nn.functional.mse_loss(action_q_preds, next_action_q_targets)
+                next_action_q_preds = (
+                    self._target_net(next_observations).gather(1, next_actions.unsqueeze(1)).squeeze(1)
+                )
+        action_q_targets = rewards + gamma * (1 - terminated) * next_action_q_preds
+        loss = torch.nn.functional.mse_loss(action_q_preds, action_q_targets)
         # update
         self._optimizer.zero_grad()
         loss.backward()
@@ -291,7 +291,7 @@ if __name__ == "__main__":
             learning_rate=2.5e-4,
             use_target_network=True,
             target_soft_update_beta=0.0,
-            target_update_frequency=10,
+            target_update_frequency=1,
             log_wandb=True,
         ),
     )
