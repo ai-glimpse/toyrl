@@ -76,9 +76,6 @@ class ReplayBuffer:
                 )
             return res
 
-    def total_reward(self) -> float:
-        return sum(experience.reward for experience in self.buffer)
-
 
 class Agent:
     def __init__(self, policy_net: PolicyNet, optimizer: torch.optim.Optimizer) -> None:
@@ -92,9 +89,6 @@ class Agent:
 
     def add_experience(self, experience: Experience) -> None:
         self._replay_buffer.add_experience(experience)
-
-    def get_buffer_total_reward(self) -> float:
-        return self._replay_buffer.total_reward()
 
     def act(self, observation: np.floating, epsilon: float) -> tuple[int, float | None]:
         if np.random.rand() < epsilon:
