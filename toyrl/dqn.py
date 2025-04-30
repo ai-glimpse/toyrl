@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+
 import wandb
 
 
@@ -14,19 +15,18 @@ class PolicyNet(nn.Module):
     def __init__(
         self,
         env_dim: int,
-        action_dim: int,
         action_num: int,
     ) -> None:
         super().__init__()
         self.env_dim = env_dim
         self.action_num = action_num
-        self.input_dim = env_dim + action_dim
-        self.output_dim = 1
 
         layers = [
-            nn.Linear(self.input_dim, 128),
+            nn.Linear(self.env_dim, 128),
             nn.ReLU(),
-            nn.Linear(128, self.output_dim),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, self.action_num),
         ]
         self.model = nn.Sequential(*layers)
 
@@ -90,15 +90,11 @@ class Agent:
     def add_experience(self, experience: Experience) -> None:
         self._replay_buffer.add_experience(experience)
 
-    def act(self, observation: np.floating, tao: float) -> tuple[int, float]:
+    def act(self, observation: np.floating, tau: float) -> tuple[int, float]:
         x = torch.from_numpy(observation.astype(np.float32))
-        logits = torch.empty(self._action_num)
         with torch.no_grad():
-            for action in range(self._action_num):
-                x_ = torch.cat((x, torch.tensor([action], dtype=torch.float32)))
-                logits[action] = self._policy_net(x_) / tao
-        next_action_prob = logits.softmax(dim=0)
-        next_action = torch.distributions.Categorical(probs=next_action_prob).sample().item()
+            logits = self._policy_net(x)
+        next_action = torch.distributions.Categorical(logits=logits / tau).sample().item()
         q_value = logits[next_action].item()
         return next_action, q_value
 
@@ -109,37 +105,29 @@ class Agent:
         observations = torch.tensor([experience.observation for experience in experiences])
         actions = torch.tensor([experience.action for experience in experiences], dtype=torch.float32)
         next_observations = torch.tensor([experience.next_observation for experience in experiences])
-        rewards = torch.tensor([experience.reward for experience in experiences]).unsqueeze(1)
+        rewards = torch.tensor([experience.reward for experience in experiences])
         terminated = torch.tensor(
             [experience.terminated for experience in experiences],
             dtype=torch.float32,
-        ).unsqueeze(1)
+        )
 
         # q preds
-        x_tensor = torch.cat((observations, actions.unsqueeze(1)), dim=1)
-        q_preds = self._policy_net(x_tensor)
+        action_q_preds = self._policy_net(observations).gather(1, actions.long().unsqueeze(1)).squeeze(1)
 
-        action_probs = torch.empty(size=(len(experiences), self._action_num))
         with torch.no_grad():
-            for next_action in range(self._action_num):
-                next_actions = torch.tensor([next_action] * len(experiences), dtype=torch.float32)
-                x_tensor = torch.cat((next_observations, next_actions.unsqueeze(1)), dim=1)
-                action_probs[:, next_action] = self._policy_net(x_tensor).squeeze(1)
-
-        next_actions = torch.argmax(action_probs, dim=1)
-        x_tensor = torch.cat((next_observations, next_actions.unsqueeze(1)), dim=1)
-        with torch.no_grad():
+            next_action_logits = self._policy_net(next_observations)
+            next_actions = torch.argmax(next_action_logits, dim=1)
             if self._target_net is None:  # Vanilla DQN
-                next_q_preds = self._policy_net(x_tensor)
+                next_action_q_preds = torch.gather(next_action_logits, 1, next_actions.unsqueeze(1)).squeeze(1)
             else:  # Double DQN
-                next_q_preds = self._target_net(x_tensor)
-        q_targets = rewards + gamma * (1 - terminated) * next_q_preds
-        loss = torch.nn.functional.mse_loss(q_preds, q_targets)
+                next_action_q_preds = (
+                    self._target_net(next_observations).gather(1, next_actions.unsqueeze(1)).squeeze(1)
+                )
+        action_q_targets = rewards + gamma * (1 - terminated) * next_action_q_preds
+        loss = torch.nn.functional.mse_loss(action_q_preds, action_q_targets)
         # update
         self._optimizer.zero_grad()
         loss.backward()
-        # In-place gradient clipping
-        # torch.nn.utils.clip_grad_value_(self._policy_net.parameters(), 10)
         self._optimizer.step()
         return loss.item()
 
@@ -162,27 +150,31 @@ class EnvConfig:
 class TrainConfig:
     gamma: float = 0.999
     """The discount factor for future rewards."""
-    replay_buffer_size: int = 10000  # K
-    """The size of the replay buffer."""
+    replay_buffer_capacity: int = 10000
+    """The maximum capacity of the experience replay buffer."""
 
-    num_episodes: int = 500
-    """The number of episodes to train the agent."""
-    batch_pre_train: int = 4  # B
-    """The number of batches to pre-train the agent."""
-    batch_size: int = 32  # N
-    """The size of each batch."""
-    update_per_batch: int = 4  # U
-    """The number of updates per batch."""
+    max_training_steps: int = 500000
+    """The maximum number of environment steps to train for."""
+    learning_starts: int = 10000
+    """The number of steps to collect before starting learning."""
+    policy_update_frequency: int = 10
+    """How often to update the policy network (in environment steps)."""
+    batches_per_training_step: int = 16
+    """The number of experience batches to sample in each training step."""
+    batch_size: int = 128
+    """The size of each training batch."""
+    updates_per_batch: int = 1
+    """The number of optimization steps to perform on each batch."""
 
     learning_rate: float = 0.01
     """The learning rate for the optimizer."""
 
-    with_target_net: bool = False
-    """Whether to use a target network for training."""
-    target_net_update_freq: int = 10  # F
-    """The frequency of updating the target network."""
-    beta: float = 0.0
-    """The target network update rate(Polyak update)."""
+    use_target_network: bool = False
+    """Whether to use a separate target network (Double DQN when True)."""
+    target_update_frequency: int = 10
+    """How often to update the target network (in environment steps)."""
+    target_soft_update_beta: float = 0.0
+    """The soft update parameter for target network (0.0 means hard update)."""
 
     log_wandb: bool = False
     """Whether to log the training process to Weights and Biases."""
@@ -197,16 +189,16 @@ class DqnConfig:
 class DqnTrainer:
     def __init__(self, config: DqnConfig) -> None:
         self.config = config
-        self.env = gym.make(config.env.env_name, render_mode=config.env.render_mode)
+        self.env = self._make_env()
         if isinstance(self.env.action_space, gym.spaces.Discrete) is False:
             raise ValueError("Only discrete action space is supported.")
         env_dim = self.env.observation_space.shape[0]  # type: ignore[index]
         action_num = self.env.action_space.n  # type: ignore[attr-defined]
 
-        policy_net = PolicyNet(env_dim=env_dim, action_dim=1, action_num=action_num)
-        optimizer = optim.RMSprop(policy_net.parameters(), lr=config.train.learning_rate)
-        if config.train.with_target_net:
-            target_net = PolicyNet(env_dim=env_dim, action_dim=1, action_num=action_num)
+        policy_net = PolicyNet(env_dim=env_dim, action_num=action_num)
+        optimizer = optim.Adam(policy_net.parameters(), lr=config.train.learning_rate)
+        if config.train.use_target_network:
+            target_net = PolicyNet(env_dim=env_dim, action_num=action_num)
             target_net.load_state_dict(policy_net.state_dict())
         else:
             target_net = None
@@ -214,10 +206,9 @@ class DqnTrainer:
             policy_net=policy_net,
             target_net=target_net,
             optimizer=optimizer,
-            replay_buffer_size=config.train.replay_buffer_size,
+            replay_buffer_size=config.train.replay_buffer_capacity,
         )
 
-        self.num_episodes = config.train.num_episodes
         self.gamma = config.train.gamma
         self.solved_threshold = config.env.solved_threshold
         if config.train.log_wandb:
@@ -229,75 +220,92 @@ class DqnTrainer:
                 config=asdict(config),
             )
 
+    def _make_env(self):
+        env = gym.make(self.config.env.env_name, render_mode=self.config.env.render_mode)
+        env = gym.wrappers.RecordEpisodeStatistics(env)
+        env = gym.wrappers.Autoreset(env)
+        return env
+
     def _get_dqn_name(self) -> str:
-        if self.config.train.with_target_net:
+        if self.config.train.use_target_network:
             return "Double DQN"
         return "DQN"
 
     def train(self) -> None:
         tau = 5.0
-        for episode in range(self.num_episodes):
-            observation, _ = self.env.reset()
-            terminated, truncated = False, False
-            q_values = []
-
-            episode_reward = 0.0
-            while not (terminated or truncated):
-                action, q_value = self.agent.act(observation, tau)
-                if q_value is not None:
-                    q_values.append(q_value)
-                next_observation, reward, terminated, truncated, _ = self.env.step(action)
-                episode_reward += float(reward)
-                experience = Experience(
-                    observation=observation,
-                    action=action,
-                    reward=float(reward),
-                    next_observation=next_observation,
-                    terminated=terminated,
-                    truncated=truncated,
-                )
-                self.agent.add_experience(experience)
-                observation = next_observation
-                if self.env.render_mode is not None:
-                    self.env.render()
-            loss_total = 0.0
-            for b in range(self.config.train.batch_pre_train):
-                batch_experiences = self.agent.sample(self.config.train.batch_size)
-                for u in range(self.config.train.update_per_batch):
-                    loss = self.agent.policy_update(gamma=self.gamma, experiences=batch_experiences)
-                    loss_total += loss
-            episode_loss_mean = loss_total / (self.config.train.batch_pre_train * self.config.train.update_per_batch)
-            q_value_mean = np.mean(q_values)
+        global_step = 0
+        observation, _ = self.env.reset()
+        while global_step < self.config.train.max_training_steps:
+            global_step += 1
             # decay tau
-            tau = max(0.5, tau * 0.999)
-            # update target net
-            if self.config.train.with_target_net and episode % self.config.train.target_net_update_freq == 0:
-                self.agent.polyak_update(beta=self.config.train.beta)
+            tau = max(0.1, tau * 0.995)
 
-            print(
-                f"Episode {episode}, tau: {tau}, loss: {episode_loss_mean}, "
-                f"q_value_mean: {q_value_mean}, episode_reward: {episode_reward}"
-            )
+            action, q_value = self.agent.act(observation, tau)
             if self.config.train.log_wandb:
-                wandb.log(
-                    {
-                        "episode": episode,
-                        "episode_loss_mean": episode_loss_mean,
-                        "q_value_mean": q_value_mean,
-                        "episode_reward": episode_reward,
-                    }
-                )
+                wandb.log({"global_step": global_step, "q_value": q_value})
+
+            next_observation, reward, terminated, truncated, info = self.env.step(action)
+            experience = Experience(
+                observation=observation,
+                action=action,
+                reward=float(reward),
+                next_observation=next_observation,
+                terminated=terminated,
+                truncated=truncated,
+            )
+            self.agent.add_experience(experience)
+            observation = next_observation
+
+            if terminated or truncated:
+                if info and "episode" in info:
+                    reward = info["episode"]["r"]
+                    print(f"global_step={global_step}, episodic_return={reward}")
+                    if self.config.train.log_wandb:
+                        wandb.log(
+                            {
+                                "global_step": global_step,
+                                "episode_reward": reward,
+                            }
+                        )
+
+            if self.env.render_mode is not None:
+                self.env.render()
+
+            if (
+                global_step >= self.config.train.learning_starts
+                and global_step % self.config.train.policy_update_frequency == 0
+            ):
+                loss = self._train_step()
+                if self.config.train.log_wandb:
+                    wandb.log(
+                        {
+                            "global_step": global_step,
+                            "loss": loss,
+                        }
+                    )
+            # update target net
+            if self.config.train.use_target_network and global_step % self.config.train.target_update_frequency == 0:
+                self.agent.polyak_update(beta=self.config.train.target_soft_update_beta)
+
+    def _train_step(self) -> float:
+        loss = 0.0
+        for b in range(self.config.train.batches_per_training_step):
+            batch_experiences = self.agent.sample(self.config.train.batch_size)
+            for u in range(self.config.train.updates_per_batch):
+                loss += self.agent.policy_update(gamma=self.gamma, experiences=batch_experiences)
+        loss /= self.config.train.batches_per_training_step * self.config.train.updates_per_batch
+        return loss
 
 
 if __name__ == "__main__":
     simple_config = DqnConfig(
         env=EnvConfig(env_name="CartPole-v1", render_mode=None, solved_threshold=475.0),
         train=TrainConfig(
-            num_episodes=100000,
-            learning_rate=0.01,
-            with_target_net=False,
-            beta=0.0,
-            target_net_update_freq=10,
+            max_training_steps=500000,
+            learning_rate=2.5e-4,
+            use_target_network=True,
+            target_soft_update_beta=0.0,
+            target_update_frequency=5,
             log_wandb=True,
         ),
     )

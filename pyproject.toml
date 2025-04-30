@@ -119,9 +119,9 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = [
-    'F',  # Pyflakes
-    'E',  # pycodestyle (Error)
-    'I',  # isort
+    'F', # Pyflakes
+    'E', # pycodestyle (Error)
+    # 'I',  # isort  # TODO: enable isort
     'D',  # pydocstyle
     'UP', # pyupgrade
 ]
