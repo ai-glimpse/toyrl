@@ -14,19 +14,16 @@ class PolicyNet(nn.Module):
     def __init__(
         self,
         env_dim: int,
-        action_dim: int,
         action_num: int,
     ) -> None:
         super().__init__()
         self.env_dim = env_dim
         self.action_num = action_num
-        self.input_dim = env_dim + action_dim
-        self.output_dim = 1
 
         layers = [
-            nn.Linear(self.input_dim, 128),
+            nn.Linear(self.env_dim, 128),
             nn.ReLU(),
-            nn.Linear(128, self.output_dim),
+            nn.Linear(128, self.action_num),
         ]
         self.model = nn.Sequential(*layers)
 
@@ -90,15 +87,11 @@ class Agent:
     def add_experience(self, experience: Experience) -> None:
         self._replay_buffer.add_experience(experience)
 
-    def act(self, observation: np.floating, tao: float) -> tuple[int, float]:
+    def act(self, observation: np.floating, tau: float) -> tuple[int, float]:
         x = torch.from_numpy(observation.astype(np.float32))
-        logits = torch.empty(self._action_num)
         with torch.no_grad():
-            for action in range(self._action_num):
-                x_ = torch.cat((x, torch.tensor([action], dtype=torch.float32)))
-                logits[action] = self._policy_net(x_) / tao
-        next_action_prob = logits.softmax(dim=0)
-        next_action = torch.distributions.Categorical(probs=next_action_prob).sample().item()
+            logits = self._policy_net(x)
+        next_action = torch.distributions.Categorical(logits=logits / tau).sample().item()
         q_value = logits[next_action].item()
         return next_action, q_value
 
@@ -109,32 +102,26 @@ class Agent:
         observations = torch.tensor([experience.observation for experience in experiences])
         actions = torch.tensor([experience.action for experience in experiences], dtype=torch.float32)
         next_observations = torch.tensor([experience.next_observation for experience in experiences])
-        rewards = torch.tensor([experience.reward for experience in experiences]).unsqueeze(1)
+        rewards = torch.tensor([experience.reward for experience in experiences])
         terminated = torch.tensor(
             [experience.terminated for experience in experiences],
             dtype=torch.float32,
-        ).unsqueeze(1)
+        )
 
         # q preds
-        x_tensor = torch.cat((observations, actions.unsqueeze(1)), dim=1)
-        q_preds = self._policy_net(x_tensor)
+        q_preds = self._policy_net(observations)
+        action_q_preds = q_preds.gather(1, actions.long().unsqueeze(1)).squeeze(1)
 
-        action_probs = torch.empty(size=(len(experiences), self._action_num))
         with torch.no_grad():
-            for next_action in range(self._action_num):
-                next_actions = torch.tensor([next_action] * len(experiences), dtype=torch.float32)
-                x_tensor = torch.cat((next_observations, next_actions.unsqueeze(1)), dim=1)
-                action_probs[:, next_action] = self._policy_net(x_tensor).squeeze(1)
-
-        next_actions = torch.argmax(action_probs, dim=1)
-        x_tensor = torch.cat((next_observations, next_actions.unsqueeze(1)), dim=1)
-        with torch.no_grad():
+            next_action_logits = self._policy_net(next_observations)
+            next_actions = torch.argmax(next_action_logits, dim=1)
             if self._target_net is None:  # Vanilla DQN
-                next_q_preds = self._policy_net(x_tensor)
+                next_action_q_preds = torch.gather(next_action_logits, 1, next_actions.unsqueeze(1)).squeeze(1)
             else:  # Double DQN
-                next_q_preds = self._target_net(x_tensor)
-        q_targets = rewards + gamma * (1 - terminated) * next_q_preds
-        loss = torch.nn.functional.mse_loss(q_preds, q_targets)
+                next_q_preds = self._target_net(next_observations)
+                next_action_q_preds = torch.gather(next_q_preds, 1, next_actions.unsqueeze(1)).squeeze(1)
+        next_action_q_targets = rewards + gamma * (1 - terminated) * next_action_q_preds
+        loss = torch.nn.functional.mse_loss(action_q_preds, next_action_q_targets)
         # update
         self._optimizer.zero_grad()
         loss.backward()
@@ -171,7 +158,7 @@ class TrainConfig:
     """The number of batches to pre-train the agent."""
     batch_size: int = 32  # N
     """The size of each batch."""
-    update_per_batch: int = 4  # U
+    update_per_batch: int = 1  # U
     """The number of updates per batch."""
 
     learning_rate: float = 0.01
@@ -179,7 +166,7 @@ class TrainConfig:
 
     with_target_net: bool = False
     """Whether to use a target network for training."""
-    target_net_update_freq: int = 10  # F
+    target_net_update_freq: int = 1  # F
     """The frequency of updating the target network."""
     beta: float = 0.0
     """The target network update rate(Polyak update)."""
@@ -203,10 +190,10 @@ class DqnTrainer:
         env_dim = self.env.observation_space.shape[0]  # type: ignore[index]
         action_num = self.env.action_space.n  # type: ignore[attr-defined]
 
-        policy_net = PolicyNet(env_dim=env_dim, action_dim=1, action_num=action_num)
+        policy_net = PolicyNet(env_dim=env_dim, action_num=action_num)
         optimizer = optim.RMSprop(policy_net.parameters(), lr=config.train.learning_rate)
         if config.train.with_target_net:
-            target_net = PolicyNet(env_dim=env_dim, action_dim=1, action_num=action_num)
+            target_net = PolicyNet(env_dim=env_dim, action_num=action_num)
             target_net.load_state_dict(policy_net.state_dict())
         else:
             target_net = None
@@ -297,7 +284,7 @@ if __name__ == "__main__":
             learning_rate=0.01,
             with_target_net=False,
             beta=0.0,
-            target_net_update_freq=10,
+            target_net_update_freq=1,
             log_wandb=True,
         ),
     )

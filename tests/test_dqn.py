@@ -19,8 +19,8 @@ from toyrl.dqn import (
 
 def test_policy_net():
     """Test the PolicyNet class."""
-    env_dim, action_dim, action_num = 4, 1, 2
-    net = PolicyNet(env_dim=env_dim, action_dim=action_dim, action_num=action_num)
+    env_dim, action_num = 4, 2
+    net = PolicyNet(env_dim=env_dim, action_num=action_num)
 
     # Test forward pass
     x = torch.cat((torch.randn(env_dim, dtype=torch.float32), torch.tensor([0], dtype=torch.float32)))
@@ -69,12 +69,12 @@ def test_replay_buffer():
 
 def test_agent_creation():
     """Test creating an agent."""
-    env_dim, action_dim, action_num = 4, 1, 2
-    policy_net = PolicyNet(env_dim=env_dim, action_dim=action_dim, action_num=action_num)
+    env_dim, action_num = 4, 2
+    policy_net = PolicyNet(env_dim=env_dim, action_num=action_num)
     optimizer = torch.optim.RMSprop(policy_net.parameters(), lr=0.01)
 
     # Test with target network
-    target_net = PolicyNet(env_dim=env_dim, action_dim=action_dim, action_num=action_num)
+    target_net = PolicyNet(env_dim=env_dim, action_num=action_num)
     agent = Agent(
         policy_net=policy_net,
         target_net=target_net,
@@ -101,8 +101,8 @@ def test_agent_creation():
 
 def test_agent_act():
     """Test the agent's act method."""
-    env_dim, action_dim, action_num = 4, 1, 2
-    policy_net = PolicyNet(env_dim=env_dim, action_dim=action_dim, action_num=action_num)
+    env_dim, action_num = 4, 2
+    policy_net = PolicyNet(env_dim=env_dim, action_num=action_num)
     optimizer = torch.optim.RMSprop(policy_net.parameters(), lr=0.01)
 
     agent = Agent(
@@ -114,7 +114,7 @@ def test_agent_act():
 
     # Test act method
     observation = np.array([0.1, 0.2, 0.3, 0.4], dtype=np.float32)
-    action, q_value = agent.act(observation, tao=1.0)
+    action, q_value = agent.act(observation, tau=1.0)
 
     assert isinstance(action, int)
     assert action in [0, 1]  # For CartPole
@@ -123,12 +123,12 @@ def test_agent_act():
 
 def test_agent_policy_update():
     """Test the agent's policy update method."""
-    env_dim, action_dim, action_num = 4, 1, 2
-    policy_net = PolicyNet(env_dim=env_dim, action_dim=action_dim, action_num=action_num)
+    env_dim, action_num = 4, 2
+    policy_net = PolicyNet(env_dim=env_dim, action_num=action_num)
     optimizer = torch.optim.RMSprop(policy_net.parameters(), lr=0.01)
 
     # Test with target network
-    target_net = PolicyNet(env_dim=env_dim, action_dim=action_dim, action_num=action_num)
+    target_net = PolicyNet(env_dim=env_dim, action_num=action_num)
     agent = Agent(
         policy_net=policy_net,
         target_net=target_net,
@@ -164,10 +164,10 @@ def test_agent_policy_update():
 
 def test_agent_polyak_update():
     """Test the agent's polyak update method."""
-    env_dim, action_dim, action_num = 4, 1, 2
-    policy_net = PolicyNet(env_dim=env_dim, action_dim=action_dim, action_num=action_num)
+    env_dim, action_num = 4, 2
+    policy_net = PolicyNet(env_dim=env_dim, action_num=action_num)
     optimizer = torch.optim.RMSprop(policy_net.parameters(), lr=0.01)
-    target_net = PolicyNet(env_dim=env_dim, action_dim=action_dim, action_num=action_num)
+    target_net = PolicyNet(env_dim=env_dim, action_num=action_num)
 
     agent = Agent(
         policy_net=policy_net,
