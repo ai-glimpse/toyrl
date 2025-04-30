@@ -114,11 +114,10 @@ def test_agent_act():
 
     # Test act method
     observation = np.array([0.1, 0.2, 0.3, 0.4], dtype=np.float32)
-    action, q_value = agent.act(observation, tau=1.0)
+    action = agent.act(observation, tau=1.0)
 
     assert isinstance(action, int)
     assert action in [0, 1]  # For CartPole
-    assert isinstance(q_value, float)
 
 
 def test_agent_policy_update():
@@ -197,7 +196,7 @@ def test_config():
     custom_config = DqnConfig(
         env=EnvConfig(env_name="MountainCar-v0", solved_threshold=90.0),
         train=TrainConfig(
-            num_episodes=1000,
+            total_steps=1000,
             learning_rate=0.005,
             with_target_net=True,
             target_net_update_freq=10,
@@ -206,7 +205,7 @@ def test_config():
 
     assert custom_config.env.env_name == "MountainCar-v0"
     assert custom_config.env.solved_threshold == 90.0
-    assert custom_config.train.num_episodes == 1000
+    assert custom_config.train.total_steps == 1000
     assert custom_config.train.learning_rate == 0.005
     assert custom_config.train.with_target_net
     assert custom_config.train.target_net_update_freq == 10
@@ -218,7 +217,7 @@ def test_trainer_creation(with_target_net):
     config = DqnConfig(
         env=EnvConfig(env_name="CartPole-v1", render_mode=None),
         train=TrainConfig(
-            num_episodes=10,
+            total_steps=10,
             learning_rate=0.01,
             log_wandb=False,
             with_target_net=with_target_net,
@@ -229,19 +228,21 @@ def test_trainer_creation(with_target_net):
 
     assert isinstance(trainer.env, gym.Env)
     assert isinstance(trainer.agent, Agent)
-    assert hasattr(trainer, "num_episodes")
-    assert trainer.num_episodes == 10
+    assert hasattr(trainer, "gamma")
+    assert trainer.gamma == 0.999
     assert (trainer.agent._target_net is not None) == with_target_net
 
 
 @pytest.mark.parametrize("with_target_net", [False, True])
 def test_minimal_training(with_target_net):
     """Test minimal training run with a single episode for both DQN variants."""
-    # Create minimal config with just one episode
+    # Create minimal config with minimal steps
     config = DqnConfig(
         env=EnvConfig(env_name="CartPole-v1", render_mode=None),
         train=TrainConfig(
-            num_episodes=1,
+            total_steps=1,  # Just run a single step
+            train_start_step=0,  # Start training immediately
+            train_frequency_step=1,  # Train every step
             learning_rate=0.01,
             log_wandb=False,
             with_target_net=with_target_net,
@@ -251,7 +252,7 @@ def test_minimal_training(with_target_net):
     # Initialize trainer
     trainer = DqnTrainer(config)
 
-    # Run training for one episode
+    # Run training for one step
     trainer.train()
 
     # If we got here without errors, test passed
