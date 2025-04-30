@@ -36,7 +36,7 @@ jobs:
       - name: Print Ruff version
         run: uv run ruff --version
       - name: Lint with Ruff
-        run: uv run ruff check
+        run: uv run ruff check --no-cache
 
       - name: Run tests and generate coverage report
         run: uv run pytest --doctest-modules -v --cov=toyrl --cov-fail-under 90 --cov-report=term --cov-report=xml --cov-report=html toyrl tests
