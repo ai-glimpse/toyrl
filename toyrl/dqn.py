@@ -23,7 +23,9 @@ class PolicyNet(nn.Module):
         layers = [
             nn.Linear(self.env_dim, 128),
             nn.ReLU(),
-            nn.Linear(128, self.action_num),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, self.action_num),
         ]
         self.model = nn.Sequential(*layers)
 
@@ -125,8 +127,6 @@ class Agent:
         # update
         self._optimizer.zero_grad()
         loss.backward()
-        # In-place gradient clipping
-        # torch.nn.utils.clip_grad_value_(self._policy_net.parameters(), 10)
         self._optimizer.step()
         return loss.item()
 
@@ -154,9 +154,9 @@ class TrainConfig:
 
     num_episodes: int = 500
     """The number of episodes to train the agent."""
-    batch_pre_train: int = 4  # B
+    batch_pre_train: int = 16  # B
     """The number of batches to pre-train the agent."""
-    batch_size: int = 32  # N
+    batch_size: int = 128  # N
     """The size of each batch."""
     update_per_batch: int = 1  # U
     """The number of updates per batch."""
@@ -191,7 +191,7 @@ class DqnTrainer:
         action_num = self.env.action_space.n  # type: ignore[attr-defined]
 
         policy_net = PolicyNet(env_dim=env_dim, action_num=action_num)
-        optimizer = optim.RMSprop(policy_net.parameters(), lr=config.train.learning_rate)
+        optimizer = optim.Adam(policy_net.parameters(), lr=config.train.learning_rate)
         if config.train.with_target_net:
             target_net = PolicyNet(env_dim=env_dim, action_num=action_num)
             target_net.load_state_dict(policy_net.state_dict())
@@ -253,23 +253,23 @@ class DqnTrainer:
                 for u in range(self.config.train.update_per_batch):
                     loss = self.agent.policy_update(gamma=self.gamma, experiences=batch_experiences)
                     loss_total += loss
-            episode_loss_mean = loss_total / (self.config.train.batch_pre_train * self.config.train.update_per_batch)
+            batches_loss_mean = loss_total / (self.config.train.batch_pre_train * self.config.train.update_per_batch)
             q_value_mean = np.mean(q_values)
             # decay tau
-            tau = max(0.5, tau * 0.999)
+            tau = max(0.1, tau * 0.995)
             # update target net
             if self.config.train.with_target_net and episode % self.config.train.target_net_update_freq == 0:
                 self.agent.polyak_update(beta=self.config.train.beta)
 
             print(
-                f"Episode {episode}, tau: {tau}, loss: {episode_loss_mean}, "
+                f"Episode {episode}, tau: {tau}, loss: {batches_loss_mean}, "
                 f"q_value_mean: {q_value_mean}, episode_reward: {episode_reward}"
             )
             if self.config.train.log_wandb:
                 wandb.log(
                     {
                         "episode": episode,
-                        "episode_loss_mean": episode_loss_mean,
+                        "batches_loss_mean": batches_loss_mean,
                         "q_value_mean": q_value_mean,
                         "episode_reward": episode_reward,
                     }
@@ -281,9 +281,9 @@ if __name__ == "__main__":
         env=EnvConfig(env_name="CartPole-v1", render_mode=None, solved_threshold=475.0),
         train=TrainConfig(
             num_episodes=100000,
-            learning_rate=0.01,
-            with_target_net=False,
-            beta=0.0,
+            learning_rate=5e-4,
+            with_target_net=True,
+            beta=0.99,
             target_net_update_freq=1,
             log_wandb=True,
         ),
