@@ -114,10 +114,11 @@ def test_agent_act():
 
     # Test act method
     observation = np.array([0.1, 0.2, 0.3, 0.4], dtype=np.float32)
-    action = agent.act(observation, tau=1.0)
+    action, q_value = agent.act(observation, tau=1.0)
 
     assert isinstance(action, int)
     assert action in [0, 1]  # For CartPole
+    assert isinstance(q_value, float)
 
 
 def test_agent_policy_update():
