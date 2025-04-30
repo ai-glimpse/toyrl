@@ -95,7 +95,8 @@ class Agent:
         with torch.no_grad():
             logits = self._policy_net(x)
         next_action = torch.distributions.Categorical(logits=logits / tau).sample().item()
-        return next_action
+        q_value = logits[next_action].item()
+        return next_action, q_value
 
     def sample(self, batch_size: int) -> list[Experience]:
         return self._replay_buffer.sample(batch_size)
@@ -239,7 +240,10 @@ class DqnTrainer:
             # decay tau
             tau = max(0.1, tau * 0.995)
 
-            action = self.agent.act(observation, tau)
+            action, q_value = self.agent.act(observation, tau)
+            if self.config.train.log_wandb:
+                wandb.log({"global_step": global_step, "q_value": q_value})
+
             next_observation, reward, terminated, truncated, info = self.env.step(action)
             experience = Experience(
                 observation=observation,
@@ -271,16 +275,26 @@ class DqnTrainer:
                 global_step >= self.config.train.learning_starts
                 and global_step % self.config.train.policy_update_frequency == 0
             ):
-                self._train_step()
+                loss = self._train_step()
+                if self.config.train.log_wandb:
+                    wandb.log(
+                        {
+                            "global_step": global_step,
+                            "loss": loss,
+                        }
+                    )
             # update target net
             if self.config.train.use_target_network and global_step % self.config.train.target_update_frequency == 0:
                 self.agent.polyak_update(beta=self.config.train.target_soft_update_beta)
 
-    def _train_step(self):
+    def _train_step(self) -> float:
+        loss = 0.0
         for b in range(self.config.train.batches_per_training_step):
             batch_experiences = self.agent.sample(self.config.train.batch_size)
             for u in range(self.config.train.updates_per_batch):
-                self.agent.policy_update(gamma=self.gamma, experiences=batch_experiences)
+                loss += self.agent.policy_update(gamma=self.gamma, experiences=batch_experiences)
+        loss /= self.config.train.batches_per_training_step * self.config.train.updates_per_batch
+        return loss
 
 
 if __name__ == "__main__":
@@ -291,7 +305,7 @@ if __name__ == "__main__":
             learning_rate=2.5e-4,
             use_target_network=True,
             target_soft_update_beta=0.0,
-            target_update_frequency=1,
+            target_update_frequency=5,
             log_wandb=True,
         ),
     )
