@@ -149,31 +149,31 @@ class EnvConfig:
 class TrainConfig:
     gamma: float = 0.999
     """The discount factor for future rewards."""
-    replay_buffer_size: int = 10000  # K
-    """The size of the replay buffer."""
+    replay_buffer_capacity: int = 10000
+    """The maximum capacity of the experience replay buffer."""
 
-    total_steps: int = 500000
-    """The number of episodes to train the agent."""
-    train_start_step: int = 10000
-    """The step to start learning"""
-    train_frequency_step: int = 10
-    """The frequency of training"""
-    batch_pre_train: int = 16  # B
-    """The number of batches to pre-train the agent."""
-    batch_size: int = 128  # N
-    """The size of each batch."""
-    update_per_batch: int = 1  # U
-    """The number of updates per batch."""
+    max_training_steps: int = 500000
+    """The maximum number of environment steps to train for."""
+    learning_starts: int = 10000
+    """The number of steps to collect before starting learning."""
+    policy_update_frequency: int = 10
+    """How often to update the policy network (in environment steps)."""
+    batches_per_training_step: int = 16
+    """The number of experience batches to sample in each training step."""
+    batch_size: int = 128
+    """The size of each training batch."""
+    updates_per_batch: int = 1
+    """The number of optimization steps to perform on each batch."""
 
     learning_rate: float = 0.01
     """The learning rate for the optimizer."""
 
-    with_target_net: bool = False
-    """Whether to use a target network for training."""
-    target_net_update_freq: int = 500  # F
-    """The frequency of updating the target network."""
-    beta: float = 0.0
-    """The target network update rate(Polyak update)."""
+    use_target_network: bool = False
+    """Whether to use a separate target network (Double DQN when True)."""
+    target_update_frequency: int = 10
+    """How often to update the target network (in environment steps)."""
+    target_soft_update_beta: float = 0.0
+    """The soft update parameter for target network (0.0 means hard update)."""
 
     log_wandb: bool = False
     """Whether to log the training process to Weights and Biases."""
@@ -196,7 +196,7 @@ class DqnTrainer:
 
         policy_net = PolicyNet(env_dim=env_dim, action_num=action_num)
         optimizer = optim.Adam(policy_net.parameters(), lr=config.train.learning_rate)
-        if config.train.with_target_net:
+        if config.train.use_target_network:
             target_net = PolicyNet(env_dim=env_dim, action_num=action_num)
             target_net.load_state_dict(policy_net.state_dict())
         else:
@@ -205,7 +205,7 @@ class DqnTrainer:
             policy_net=policy_net,
             target_net=target_net,
             optimizer=optimizer,
-            replay_buffer_size=config.train.replay_buffer_size,
+            replay_buffer_size=config.train.replay_buffer_capacity,
         )
 
         self.gamma = config.train.gamma
@@ -226,7 +226,7 @@ class DqnTrainer:
         return env
 
     def _get_dqn_name(self) -> str:
-        if self.config.train.with_target_net:
+        if self.config.train.use_target_network:
             return "Double DQN"
         return "DQN"
 
@@ -234,7 +234,7 @@ class DqnTrainer:
         tau = 5.0
         global_step = 0
         observation, _ = self.env.reset()
-        while global_step < self.config.train.total_steps:
+        while global_step < self.config.train.max_training_steps:
             global_step += 1
             # decay tau
             tau = max(0.1, tau * 0.995)
@@ -268,18 +268,18 @@ class DqnTrainer:
                 self.env.render()
 
             if (
-                global_step >= self.config.train.train_start_step
-                and global_step % self.config.train.train_frequency_step == 0
+                global_step >= self.config.train.learning_starts
+                and global_step % self.config.train.policy_update_frequency == 0
             ):
                 self._train_step()
             # update target net
-            if self.config.train.with_target_net and global_step % self.config.train.target_net_update_freq == 0:
-                self.agent.polyak_update(beta=self.config.train.beta)
+            if self.config.train.use_target_network and global_step % self.config.train.target_update_frequency == 0:
+                self.agent.polyak_update(beta=self.config.train.target_soft_update_beta)
 
     def _train_step(self):
-        for b in range(self.config.train.batch_pre_train):
+        for b in range(self.config.train.batches_per_training_step):
             batch_experiences = self.agent.sample(self.config.train.batch_size)
-            for u in range(self.config.train.update_per_batch):
+            for u in range(self.config.train.updates_per_batch):
                 self.agent.policy_update(gamma=self.gamma, experiences=batch_experiences)
 
 
@@ -287,11 +287,11 @@ if __name__ == "__main__":
     simple_config = DqnConfig(
         env=EnvConfig(env_name="CartPole-v1", render_mode=None, solved_threshold=475.0),
         train=TrainConfig(
-            total_steps=500000,
+            max_training_steps=500000,
             learning_rate=2.5e-4,
-            with_target_net=True,
-            beta=0.0,
-            target_net_update_freq=1,
+            use_target_network=True,
+            target_soft_update_beta=0.0,
+            target_update_frequency=10,
             log_wandb=True,
         ),
     )

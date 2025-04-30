@@ -190,37 +190,37 @@ def test_config():
     # Check default values
     assert config.env.env_name == "CartPole-v1"
     assert config.train.gamma == 0.999
-    assert not config.train.with_target_net
+    assert not config.train.use_target_network
 
     # Test custom config
     custom_config = DqnConfig(
         env=EnvConfig(env_name="MountainCar-v0", solved_threshold=90.0),
         train=TrainConfig(
-            total_steps=1000,
+            max_training_steps=1000,
             learning_rate=0.005,
-            with_target_net=True,
-            target_net_update_freq=10,
+            use_target_network=True,
+            target_update_frequency=10,
         ),
     )
 
     assert custom_config.env.env_name == "MountainCar-v0"
     assert custom_config.env.solved_threshold == 90.0
-    assert custom_config.train.total_steps == 1000
+    assert custom_config.train.max_training_steps == 1000
     assert custom_config.train.learning_rate == 0.005
-    assert custom_config.train.with_target_net
-    assert custom_config.train.target_net_update_freq == 10
+    assert custom_config.train.use_target_network
+    assert custom_config.train.target_update_frequency == 10
 
 
-@pytest.mark.parametrize("with_target_net", [False, True])
-def test_trainer_creation(with_target_net):
+@pytest.mark.parametrize("use_target_network", [False, True])
+def test_trainer_creation(use_target_network):
     """Test creating a trainer with both DQN and Double DQN variants."""
     config = DqnConfig(
         env=EnvConfig(env_name="CartPole-v1", render_mode=None),
         train=TrainConfig(
-            total_steps=10,
+            max_training_steps=10,
             learning_rate=0.01,
             log_wandb=False,
-            with_target_net=with_target_net,
+            use_target_network=use_target_network,
         ),
     )
 
@@ -230,22 +230,22 @@ def test_trainer_creation(with_target_net):
     assert isinstance(trainer.agent, Agent)
     assert hasattr(trainer, "gamma")
     assert trainer.gamma == 0.999
-    assert (trainer.agent._target_net is not None) == with_target_net
+    assert (trainer.agent._target_net is not None) == use_target_network
 
 
-@pytest.mark.parametrize("with_target_net", [False, True])
-def test_minimal_training(with_target_net):
+@pytest.mark.parametrize("use_target_network", [False, True])
+def test_minimal_training(use_target_network):
     """Test minimal training run with a single episode for both DQN variants."""
     # Create minimal config with minimal steps
     config = DqnConfig(
         env=EnvConfig(env_name="CartPole-v1", render_mode=None),
         train=TrainConfig(
-            total_steps=1,  # Just run a single step
-            train_start_step=0,  # Start training immediately
-            train_frequency_step=1,  # Train every step
+            max_training_steps=1,  # Just run a single step
+            learning_starts=0,  # Start training immediately
+            policy_update_frequency=1,  # Train every step
             learning_rate=0.01,
             log_wandb=False,
-            with_target_net=with_target_net,
+            use_target_network=use_target_network,
         ),
     )
 
