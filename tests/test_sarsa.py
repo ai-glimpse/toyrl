@@ -98,16 +98,14 @@ def test_agent_act():
 
     # Test act method with epsilon=0 (greedy)
     observation = np.array([0.1, 0.2, 0.3, 0.4], dtype=np.float32)
-    action, q_value = agent.act(observation, epsilon=0.0)
+    action = agent.act(observation, epsilon=0.0)
 
     assert isinstance(action, int)
     assert action in [0, 1]  # For CartPole
-    assert isinstance(q_value, float) or q_value is None
 
     # Test act method with epsilon=1.0 (random)
-    action, q_value = agent.act(observation, epsilon=1.0)
+    action = agent.act(observation, epsilon=1.0)
     assert action in [0, 1]
-    assert q_value is None
 
 
 def test_config():

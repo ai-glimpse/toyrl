@@ -90,15 +90,14 @@ class Agent:
     def add_experience(self, experience: Experience) -> None:
         self._replay_buffer.add_experience(experience)
 
-    def act(self, observation: np.floating, epsilon: float) -> tuple[int, float | None]:
+    def act(self, observation: np.floating, epsilon: float) -> int:
         if np.random.rand() < epsilon:
             action = np.random.randint(self._action_num)
-            return action, None
+            return action
         x = torch.from_numpy(observation.astype(np.float32))
         logits = self._policy_net(x)
         action = int(torch.argmax(logits).item())
-        q_value = logits[action].item()
-        return action, q_value
+        return action
 
     def policy_update(self, gamma: float) -> float:
         experiences = self._replay_buffer.sample()
@@ -188,9 +187,9 @@ class SarsaTrainer:
         observation, _ = self.env.reset()
         while global_step < self.config.train.max_training_steps:
             global_step += 1
-            epsilon = max(0.01, epsilon * 0.9999)
+            epsilon = max(0.05, epsilon * 0.9999)
 
-            action, _ = self.agent.act(observation, epsilon)
+            action = self.agent.act(observation, epsilon)
             next_observation, reward, terminated, truncated, info = self.env.step(action)
             experience = Experience(
                 observation=observation,
@@ -207,15 +206,17 @@ class SarsaTrainer:
 
             if terminated or truncated:
                 if info and "episode" in info:
-                    reward = info["episode"]["r"]
+                    episode_reward = info["episode"]["r"]
                     loss = self.agent.policy_update(gamma=self.gamma)
                     self.agent.onpolicy_reset()
-                    print(f"global_step={global_step}, epsilon={epsilon}, episodic_return={reward}, loss={loss}")
+                    print(
+                        f"global_step={global_step}, epsilon={epsilon}, episodic_return={episode_reward}, loss={loss}"
+                    )
                     if self.config.train.log_wandb:
                         wandb.log(
                             {
                                 "global_step": global_step,
-                                "episode_reward": reward,
+                                "episode_reward": episode_reward,
                                 "loss": loss,
                             }
                         )
