@@ -23,10 +23,10 @@ def test_policy_net():
     net = PolicyNet(env_dim=env_dim, action_num=action_num)
 
     # Test forward pass
-    x = torch.cat((torch.randn(env_dim, dtype=torch.float32), torch.tensor([0], dtype=torch.float32)))
+    x = torch.randn(env_dim, dtype=torch.float32)
     output = net(x)
 
-    assert output.shape == torch.Size([1])
+    assert output.shape == torch.Size([action_num])
     assert isinstance(output, torch.Tensor)
     assert output.dtype == torch.float32
 
