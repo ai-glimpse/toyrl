@@ -14,22 +14,18 @@ class PolicyNet(nn.Module):
     def __init__(
         self,
         env_dim: int,
-        action_dim: int,
         action_num: int,
     ) -> None:
         super().__init__()
         self.env_dim = env_dim
         self.action_num = action_num
-        self.input_dim = env_dim + action_dim
-        self.output_dim = 1
 
         layers = [
-            nn.Linear(self.input_dim, 128),
+            nn.Linear(self.env_dim, 128),
             nn.ReLU(),
-            nn.Linear(128, self.output_dim),
+            nn.Linear(128, self.action_num),
         ]
         self.model = nn.Sequential(*layers)
-        # self.train()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.model(x)  # type: ignore
@@ -80,9 +76,6 @@ class ReplayBuffer:
                 )
             return res
 
-    def total_reward(self) -> float:
-        return sum(experience.reward for experience in self.buffer)
-
 
 class Agent:
     def __init__(self, policy_net: PolicyNet, optimizer: torch.optim.Optimizer) -> None:
@@ -97,24 +90,14 @@ class Agent:
     def add_experience(self, experience: Experience) -> None:
         self._replay_buffer.add_experience(experience)
 
-    def get_buffer_total_reward(self) -> float:
-        return self._replay_buffer.total_reward()
-
-    def act(self, observation: np.floating, epsilon: float) -> tuple[int, float | None]:
+    def act(self, observation: np.floating, epsilon: float) -> int:
         if np.random.rand() < epsilon:
             action = np.random.randint(self._action_num)
-            return action, None
+            return action
         x = torch.from_numpy(observation.astype(np.float32))
-        max_q = torch.tensor(-np.inf)
-        with torch.no_grad():
-            best_action = 0
-            for action in range(self._action_num):
-                x_ = torch.cat((x, torch.tensor([action], dtype=torch.float32)))
-                q = self._policy_net(x_)
-                if q > max_q:
-                    max_q = q
-                    best_action = action
-        return best_action, max_q.item()
+        logits = self._policy_net(x)
+        action = int(torch.argmax(logits).item())
+        return action
 
     def policy_update(self, gamma: float) -> float:
         experiences = self._replay_buffer.sample()
@@ -123,24 +106,23 @@ class Agent:
         actions = torch.tensor([experience.action for experience in experiences], dtype=torch.float32)
         next_observations = torch.tensor([experience.next_observation for experience in experiences])
         next_actions = torch.tensor([experience.next_action for experience in experiences])
-        rewards = torch.tensor([experience.reward for experience in experiences]).unsqueeze(1)
+        rewards = torch.tensor([experience.reward for experience in experiences])
         terminated = torch.tensor(
             [experience.terminated for experience in experiences],
             dtype=torch.float32,
-        ).unsqueeze(1)
+        )
 
         # q preds
-        x_tensor = torch.cat((observations, actions.unsqueeze(1)), dim=1)
-        q_preds = self._policy_net(x_tensor)
-
+        action_q_preds = self._policy_net(observations).gather(1, actions.long().unsqueeze(1)).squeeze(1)
         with torch.no_grad():
-            x_tensor = torch.cat((next_observations, next_actions.unsqueeze(1)), dim=1)
-            next_q_preds = self._policy_net(x_tensor)
-            q_targets = rewards + gamma * (1 - terminated) * next_q_preds
-        loss = torch.nn.functional.mse_loss(q_preds, q_targets)
+            next_action_q_preds = self._policy_net(next_observations).gather(1, next_actions.unsqueeze(1)).squeeze(1)
+            q_targets = rewards + gamma * (1 - terminated) * next_action_q_preds
+        loss = torch.nn.functional.mse_loss(action_q_preds, q_targets)
         # update
         self._optimizer.zero_grad()
         loss.backward()
+        # clip grad
+        torch.nn.utils.clip_grad_norm_(self._policy_net.parameters(), max_norm=1.0)
         self._optimizer.step()
         return loss.item()
 
@@ -155,9 +137,12 @@ class EnvConfig:
 @dataclass
 class TrainConfig:
     gamma: float = 0.999
-    num_episodes: int = 500
-    learning_rate: float = 0.002
+    max_training_steps: int = 500000
+    """The maximum number of environment steps to train for."""
+    learning_rate: float = 2.5e-4
+    """The learning rate for the optimizer."""
     log_wandb: bool = False
+    """Whether to log the training process to Weights and Biases."""
 
 
 @dataclass
@@ -169,16 +154,15 @@ class SarsaConfig:
 class SarsaTrainer:
     def __init__(self, config: SarsaConfig) -> None:
         self.config = config
-        self.env = gym.make(config.env.env_name, render_mode=config.env.render_mode)
+        self.env = self._make_env()
         if isinstance(self.env.action_space, gym.spaces.Discrete) is False:
             raise ValueError("Only discrete action space is supported.")
         env_dim = self.env.observation_space.shape[0]  # type: ignore[index]
         action_num = self.env.action_space.n  # type: ignore[attr-defined]
-        policy_net = PolicyNet(env_dim=env_dim, action_dim=1, action_num=action_num)
-        optimizer = optim.RMSprop(policy_net.parameters(), lr=config.train.learning_rate)
+        policy_net = PolicyNet(env_dim=env_dim, action_num=action_num)
+        optimizer = optim.Adam(policy_net.parameters(), lr=config.train.learning_rate)
         self.agent = Agent(policy_net=policy_net, optimizer=optimizer)
 
-        self.num_episodes = config.train.num_episodes
         self.gamma = config.train.gamma
         self.solved_threshold = config.env.solved_threshold
         if config.train.log_wandb:
@@ -190,55 +174,62 @@ class SarsaTrainer:
                 config=asdict(config),
             )
 
+    def _make_env(self):
+        env = gym.make(self.config.env.env_name, render_mode=self.config.env.render_mode)
+        env = gym.wrappers.RecordEpisodeStatistics(env)
+        env = gym.wrappers.Autoreset(env)
+        return env
+
     def train(self) -> None:
         epsilon = 1.0
-        for episode in range(self.num_episodes):
-            observation, _ = self.env.reset()
-            terminated, truncated = False, False
-            q_values = []
-            while not (terminated or truncated):
-                action, q_value = self.agent.act(observation, epsilon)
-                if q_value is not None:
-                    q_values.append(q_value)
-                next_observation, reward, terminated, truncated, _ = self.env.step(action)
-                experience = Experience(
-                    observation=observation,
-                    action=action,
-                    reward=float(reward),
-                    next_observation=next_observation,
-                    terminated=terminated,
-                    truncated=truncated,
-                )
-                self.agent.add_experience(experience)
-                observation = next_observation
-                if self.env.render_mode is not None:
-                    self.env.render()
-            loss = self.agent.policy_update(gamma=self.gamma)
-            total_reward = self.agent.get_buffer_total_reward()
-            solved = total_reward > self.solved_threshold
-            self.agent.onpolicy_reset()
-            epsilon = max(0.01, epsilon * 0.997)
-            q_value_mean = np.mean(q_values)
+        global_step = 0
 
-            print(
-                f"Episode {episode}, epsilon: {epsilon}, loss: {loss}, q_value_mean: {q_value_mean}, "
-                f"total_reward: {total_reward}, solved: {solved}"
+        observation, _ = self.env.reset()
+        while global_step < self.config.train.max_training_steps:
+            global_step += 1
+            epsilon = max(0.05, epsilon * 0.9999)
+
+            action = self.agent.act(observation, epsilon)
+            next_observation, reward, terminated, truncated, info = self.env.step(action)
+            experience = Experience(
+                observation=observation,
+                action=action,
+                reward=float(reward),
+                next_observation=next_observation,
+                terminated=terminated,
+                truncated=truncated,
             )
-            if self.config.train.log_wandb:
-                wandb.log(
-                    {
-                        "episode": episode,
-                        "loss": loss,
-                        "q_value_mean": q_value_mean,
-                        "total_reward": total_reward,
-                    }
-                )
+            self.agent.add_experience(experience)
+            observation = next_observation
+            if self.env.render_mode is not None:
+                self.env.render()
+
+            if terminated or truncated:
+                if info and "episode" in info:
+                    episode_reward = info["episode"]["r"]
+                    loss = self.agent.policy_update(gamma=self.gamma)
+                    self.agent.onpolicy_reset()
+                    print(
+                        f"global_step={global_step}, epsilon={epsilon}, episodic_return={episode_reward}, loss={loss}"
+                    )
+                    if self.config.train.log_wandb:
+                        wandb.log(
+                            {
+                                "global_step": global_step,
+                                "episode_reward": episode_reward,
+                                "loss": loss,
+                            }
+                        )
 
 
 if __name__ == "__main__":
     default_config = SarsaConfig(
         env=EnvConfig(env_name="CartPole-v1", render_mode=None, solved_threshold=475.0),
-        train=TrainConfig(num_episodes=100000, learning_rate=0.01, log_wandb=True),
+        train=TrainConfig(
+            max_training_steps=2000000,
+            learning_rate=0.01,
+            log_wandb=True,
+        ),
     )
     trainer = SarsaTrainer(default_config)
     trainer.train()
