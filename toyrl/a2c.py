@@ -103,14 +103,18 @@ class Agent:
         advantages = deltas.clone()
         for t in reversed(range(len(experiences) - 1)):
             advantages[t] = deltas[t] + gamma * lambda_ * advantages[t + 1] * (1 - terminateds[t])
+        # note that advantages is not normalized here, we will normalize it in the policy loss
+        # this is because we want to keep the advantages as is in the value loss
         v_targets = advantages + v_values
-
         # calculate value loss
         value_loss = nn.functional.mse_loss(v_values, v_targets)
+
         # calculate policy loss
         action_dist = torch.distributions.Categorical(logits=policy_action_logits)
-        action_entropy = action_dist.entropy()
+        action_entropy = action_dist.entropy().mean()
         action_log_probs = action_dist.log_prob(actions)
+        # TODO: normalize advantages(has problem, disable for now)
+        # advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
         policy_loss = -action_log_probs * advantages
         policy_loss = torch.mean(policy_loss)
 
