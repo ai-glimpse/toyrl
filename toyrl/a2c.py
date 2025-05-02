@@ -123,6 +123,7 @@ class Agent:
         # update
         self._optimizer.zero_grad()
         loss.backward()
+        # torch.nn.utils.clip_grad_norm_(self._net.parameters(), max_norm=0.5)
         self._optimizer.step()
         return loss.item()
 
@@ -224,9 +225,9 @@ if __name__ == "__main__":
         env=EnvConfig(env_name="CartPole-v1", render_mode=None, solved_threshold=475.0),
         train=TrainConfig(
             num_episodes=100000,
-            learning_rate=2.5e-4,
-            value_loss_coef=0.2,
-            policy_loss_coef=0.8,
+            learning_rate=7e-4,
+            value_loss_coef=0.5,
+            policy_loss_coef=1,
             entropy_coef=0.01,
             log_wandb=True,
         ),
