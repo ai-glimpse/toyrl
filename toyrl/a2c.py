@@ -83,7 +83,9 @@ class Agent:
         action = next_action_dist.sample()
         return action.item(), value
 
-    def net_update(self, gamma: float, lambda_: float, value_loss_coef: float, policy_loss_coef: float) -> float:
+    def net_update(
+        self, gamma: float, lambda_: float, value_loss_coef: float, policy_loss_coef: float, entropy_coef: float
+    ) -> float:
         experiences = self._replay_buffer.sample()
 
         observations = torch.tensor([exp.observation for exp in experiences])
@@ -107,11 +109,12 @@ class Agent:
         value_loss = nn.functional.mse_loss(v_values, v_targets)
         # calculate policy loss
         action_dist = torch.distributions.Categorical(logits=policy_action_logits)
+        action_entropy = action_dist.entropy()
         action_log_probs = action_dist.log_prob(actions)
         policy_loss = -action_log_probs * advantages
         policy_loss = torch.mean(policy_loss)
 
-        loss = value_loss * value_loss_coef + policy_loss * policy_loss_coef
+        loss = value_loss * value_loss_coef + policy_loss * policy_loss_coef - entropy_coef * action_entropy
 
         # update
         self._optimizer.zero_grad()
@@ -133,6 +136,7 @@ class TrainConfig:
     lambda_: float = 0.98
     value_loss_coef: float = 0.5
     policy_loss_coef: float = 0.5
+    entropy_coef: float = 0.01
 
     num_episodes: int = 500
     learning_rate: float = 0.01
@@ -160,6 +164,7 @@ class A2CTrainer:
         self.lambda_ = config.train.lambda_
         self.value_loss_coef = config.train.value_loss_coef
         self.policy_loss_coef = config.train.policy_loss_coef
+        self.entropy_coef = config.train.entropy_coef
         self.solved_threshold = config.env.solved_threshold
         if config.train.log_wandb:
             wandb.init(
@@ -194,6 +199,7 @@ class A2CTrainer:
                 lambda_=self.lambda_,
                 value_loss_coef=self.value_loss_coef,
                 policy_loss_coef=self.policy_loss_coef,
+                entropy_coef=self.entropy_coef,
             )
             total_reward = self.agent.get_buffer_total_reward()
             solved = total_reward > self.solved_threshold
@@ -213,7 +219,12 @@ if __name__ == "__main__":
     default_config = A2CConfig(
         env=EnvConfig(env_name="CartPole-v1", render_mode=None, solved_threshold=475.0),
         train=TrainConfig(
-            num_episodes=100000, learning_rate=2.5e-4, value_loss_coef=0.2, policy_loss_coef=0.8, log_wandb=True
+            num_episodes=100000,
+            learning_rate=2.5e-4,
+            value_loss_coef=0.2,
+            policy_loss_coef=0.8,
+            entropy_coef=0.01,
+            log_wandb=True,
         ),
     )
     trainer = A2CTrainer(default_config)
