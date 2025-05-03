@@ -256,7 +256,7 @@ if __name__ == "__main__":
             learning_rate=7e-4,
             value_loss_coef=0.5,
             policy_loss_coef=1,
-            entropy_coef=0.001,
+            entropy_coef=0.01,
             log_wandb=True,
         ),
     )
