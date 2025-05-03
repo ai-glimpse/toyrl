@@ -95,7 +95,8 @@ class Agent:
             action = np.random.randint(self._action_num)
             return action
         x = torch.from_numpy(observation.astype(np.float32))
-        logits = self._policy_net(x)
+        with torch.no_grad():
+            logits = self._policy_net(x)
         action = int(torch.argmax(logits).item())
         return action
 
