@@ -74,12 +74,15 @@ class Agent:
     def get_buffer_total_reward(self) -> float:
         return self._replay_buffer.total_reward()
 
-    def act(self, observation: np.floating) -> tuple[int, torch.Tensor]:
+    def act(self, observation: np.ndarray, eval: bool = False) -> int:
         x = torch.from_numpy(observation.astype(np.float32))
-        action_logits, value = self._net(x)
+        with torch.no_grad():
+            action_logits, _ = self._net(x)
         next_action_dist = torch.distributions.Categorical(logits=action_logits)
         action = next_action_dist.sample()
-        return action.item(), value
+        if eval:
+            action = next_action_dist.probs.argmax(dim=-1)
+        return action.item()
 
     def net_update(
         self, gamma: float, lambda_: float, value_loss_coef: float, policy_loss_coef: float, entropy_coef: float
@@ -139,6 +142,9 @@ class TrainConfig:
 
     num_episodes: int = 500
     learning_rate: float = 0.01
+
+    eval_episodes: int = 10
+    eval_interval: int = 100
     log_wandb: bool = False
 
 
@@ -175,11 +181,11 @@ class A2CTrainer:
             )
 
     def train(self) -> None:
-        for episode in range(self.num_episodes):
+        for i, episode in enumerate(range(self.num_episodes)):
             observation, _ = self.env.reset()
             terminated, truncated = False, False
             while not (terminated or truncated):
-                action, _ = self.agent.act(observation)
+                action = self.agent.act(observation)
                 next_observation, reward, terminated, truncated, _ = self.env.step(action)
                 experience = Experience(
                     observation=observation,
@@ -217,6 +223,23 @@ class A2CTrainer:
                         "advantages_mean": advantages_mean,
                     }
                 )
+
+            if i % self.config.train.eval_interval == 0:
+                eval_reward = self.evaluate(self.config.train.eval_episodes)
+                print(f"Eval reward: {eval_reward}")
+                wandb.log({"eval_reward": eval_reward, "episode": episode})
+
+    def evaluate(self, num_episodes: int) -> float:
+        total_reward = 0.0
+        for _ in range(num_episodes):
+            observation, _ = self.env.reset()
+            terminated, truncated = False, False
+            while not (terminated or truncated):
+                action = self.agent.act(observation, eval=True)
+                next_observation, reward, terminated, truncated, _ = self.env.step(action)
+                observation = next_observation
+                total_reward += float(reward)
+        return total_reward / num_episodes
 
 
 if __name__ == "__main__":
