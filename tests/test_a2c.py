@@ -103,14 +103,17 @@ def test_agent_act():
 
     agent = Agent(net=net, optimizer=optimizer)
 
-    # Test act method
+    # Test act method in training mode
     observation = np.array([0.1, 0.2, 0.3, 0.4], dtype=np.float32)
-    action, value = agent.act(observation)
+    action = agent.act(observation)
 
     assert isinstance(action, int)
     assert action in range(action_num)  # For CartPole, should be 0 or 1
-    assert isinstance(value, torch.Tensor)
-    assert value.shape == torch.Size([1])
+
+    # Test act method in eval mode
+    action = agent.act(observation, eval=True)
+    assert isinstance(action, int)
+    assert action in range(action_num)
 
 
 def test_config():
@@ -124,6 +127,8 @@ def test_config():
     assert config.train.value_loss_coef == 0.5
     assert config.train.policy_loss_coef == 0.5
     assert config.train.entropy_coef == 0.01
+    assert config.train.eval_episodes == 10
+    assert config.train.eval_interval == 100
 
     # Test custom config
     custom_config = A2CConfig(
@@ -136,6 +141,8 @@ def test_config():
             value_loss_coef=0.7,
             policy_loss_coef=0.8,
             entropy_coef=0.02,
+            eval_episodes=5,
+            eval_interval=50,
         ),
     )
 
@@ -148,6 +155,8 @@ def test_config():
     assert custom_config.train.value_loss_coef == 0.7
     assert custom_config.train.policy_loss_coef == 0.8
     assert custom_config.train.entropy_coef == 0.02
+    assert custom_config.train.eval_episodes == 5
+    assert custom_config.train.eval_interval == 50
 
 
 def test_trainer_creation():
@@ -228,3 +237,21 @@ def test_minimal_training():
 
     # If we got here without errors, test passed
     assert True
+
+
+def test_trainer_evaluation():
+    """Test the evaluation functionality of the trainer."""
+    config = A2CConfig(
+        env=EnvConfig(env_name="CartPole-v1", render_mode=None),
+        train=TrainConfig(num_episodes=1, learning_rate=0.01, log_wandb=False, eval_episodes=2, eval_interval=1),
+    )
+
+    trainer = A2CTrainer(config)
+
+    # Test evaluation method
+    eval_reward = trainer.evaluate(num_episodes=2)
+
+    assert isinstance(eval_reward, float)
+    # For a randomly initialized agent, we expect some reward but usually less than 50
+    # per episode for CartPole
+    assert 0 <= eval_reward <= 100

@@ -97,6 +97,13 @@ class Agent:
 
         # calculate predicted V-values
         policy_action_logits, v_values = self._net(observations)
+        # n-step return
+        v_targets = torch.zeros_like(rewards)
+        for t in reversed(range(len(experiences) - 1)):
+            v_targets[t] = rewards[t] + gamma * v_targets[t + 1] * (1 - terminateds[t])
+        # calculate value loss
+        value_loss = nn.functional.mse_loss(v_values, v_targets)
+
         # calculate advantages by GAE
         with torch.no_grad():
             _, v_values_next = self._net(next_observations)
@@ -104,15 +111,13 @@ class Agent:
         advantages = deltas.clone()
         for t in reversed(range(len(experiences) - 1)):
             advantages[t] = deltas[t] + gamma * lambda_ * advantages[t + 1] * (1 - terminateds[t])
-        v_targets = advantages + v_values
-        # calculate value loss
-        value_loss = nn.functional.mse_loss(v_values, v_targets)
+        advantages = advantages / (advantages.std() + 1e-8)
+        advantages = advantages.detach()
 
-        # calculate policy loss
         action_dist = torch.distributions.Categorical(logits=policy_action_logits)
         action_entropy = action_dist.entropy().mean()
         action_log_probs = action_dist.log_prob(actions)
-        # advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+        # calculate policy loss
         policy_loss = -action_log_probs * advantages
         policy_loss = torch.mean(policy_loss)
 
@@ -226,8 +231,9 @@ class A2CTrainer:
 
             if i % self.config.train.eval_interval == 0:
                 eval_reward = self.evaluate(self.config.train.eval_episodes)
-                print(f"Eval reward: {eval_reward}")
-                wandb.log({"eval_reward": eval_reward, "episode": episode})
+                print(f"Episode {episode}, Eval reward: {eval_reward}")
+                if self.config.train.log_wandb:
+                    wandb.log({"eval_reward": eval_reward, "episode": episode})
 
     def evaluate(self, num_episodes: int) -> float:
         total_reward = 0.0
