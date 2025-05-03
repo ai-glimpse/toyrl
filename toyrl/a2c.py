@@ -18,8 +18,6 @@ class ActorCriticNet(nn.Module):
         self.shared_layers = nn.Sequential(
             nn.Linear(env_dim, 64),
             nn.ReLU(),
-            # nn.Linear(64, 64),
-            # nn.ReLU(),
         )
         self.policy_head = nn.Linear(64, action_num)
         self.value_head = nn.Linear(64, 1)
@@ -85,7 +83,7 @@ class Agent:
 
     def net_update(
         self, gamma: float, lambda_: float, value_loss_coef: float, policy_loss_coef: float, entropy_coef: float
-    ) -> float:
+    ) -> tuple[float, float, float]:
         experiences = self._replay_buffer.sample()
 
         observations = torch.tensor([exp.observation for exp in experiences])
@@ -115,6 +113,7 @@ class Agent:
         action_log_probs = action_dist.log_prob(actions)
         # TODO: normalize advantages(has problem, disable for now)
         # advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+        advantages = advantages / (advantages.std() + 1e-8)
         policy_loss = -action_log_probs * advantages
         policy_loss = torch.mean(policy_loss)
 
@@ -123,9 +122,9 @@ class Agent:
         # update
         self._optimizer.zero_grad()
         loss.backward()
-        # torch.nn.utils.clip_grad_norm_(self._net.parameters(), max_norm=0.5)
+        # torch.nn.utils.clip_grad_value_(self._net.parameters(), clip_value=1)
         self._optimizer.step()
-        return loss.item()
+        return loss.item(), action_entropy.item(), advantages.mean().item()
 
 
 @dataclass
@@ -185,7 +184,7 @@ class A2CTrainer:
             observation, _ = self.env.reset()
             terminated, truncated = False, False
             while not (terminated or truncated):
-                action, value = self.agent.act(observation)
+                action, _ = self.agent.act(observation)
                 next_observation, reward, terminated, truncated, _ = self.env.step(action)
                 experience = Experience(
                     observation=observation,
@@ -199,7 +198,7 @@ class A2CTrainer:
                 observation = next_observation
                 if self.config.env.render_mode is not None:
                     self.env.render()
-            loss = self.agent.net_update(
+            loss, action_entropy, advantages_mean = self.agent.net_update(
                 gamma=self.gamma,
                 lambda_=self.lambda_,
                 value_loss_coef=self.value_loss_coef,
@@ -209,13 +208,18 @@ class A2CTrainer:
             total_reward = self.agent.get_buffer_total_reward()
             solved = total_reward > self.solved_threshold
             self.agent.onpolicy_reset()
-            print(f"Episode {epi}, total_reward: {total_reward}, solved: {solved}, loss: {loss}")
+            print(
+                f"Episode {epi}, total_reward: {total_reward}, solved: {solved}, loss: {loss}, "
+                f"action_entropy: {action_entropy}, advantages_mean: {advantages_mean}"
+            )
             if self.config.train.log_wandb:
                 wandb.log(
                     {
                         "episode": epi,
                         "loss": loss,
                         "total_reward": total_reward,
+                        "action_entropy": action_entropy,
+                        "advantages_mean": advantages_mean,
                     }
                 )
 
@@ -228,7 +232,7 @@ if __name__ == "__main__":
             learning_rate=7e-4,
             value_loss_coef=0.5,
             policy_loss_coef=1,
-            entropy_coef=0.01,
+            entropy_coef=0.001,
             log_wandb=True,
         ),
     )
