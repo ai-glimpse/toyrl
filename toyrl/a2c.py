@@ -101,8 +101,6 @@ class Agent:
         advantages = deltas.clone()
         for t in reversed(range(len(experiences) - 1)):
             advantages[t] = deltas[t] + gamma * lambda_ * advantages[t + 1] * (1 - terminateds[t])
-        # note that advantages is not normalized here, we will normalize it in the policy loss
-        # this is because we want to keep the advantages as is in the value loss
         v_targets = advantages + v_values
         # calculate value loss
         value_loss = nn.functional.mse_loss(v_values, v_targets)
@@ -111,9 +109,7 @@ class Agent:
         action_dist = torch.distributions.Categorical(logits=policy_action_logits)
         action_entropy = action_dist.entropy().mean()
         action_log_probs = action_dist.log_prob(actions)
-        # TODO: normalize advantages(has problem, disable for now)
         # advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
-        advantages = advantages / (advantages.std() + 1e-8)
         policy_loss = -action_log_probs * advantages
         policy_loss = torch.mean(policy_loss)
 
@@ -122,7 +118,6 @@ class Agent:
         # update
         self._optimizer.zero_grad()
         loss.backward()
-        # torch.nn.utils.clip_grad_value_(self._net.parameters(), clip_value=1)
         self._optimizer.step()
         return loss.item(), action_entropy.item(), advantages.mean().item()
 
@@ -180,7 +175,7 @@ class A2CTrainer:
             )
 
     def train(self) -> None:
-        for epi in range(self.num_episodes):
+        for episode in range(self.num_episodes):
             observation, _ = self.env.reset()
             terminated, truncated = False, False
             while not (terminated or truncated):
@@ -209,13 +204,13 @@ class A2CTrainer:
             solved = total_reward > self.solved_threshold
             self.agent.onpolicy_reset()
             print(
-                f"Episode {epi}, total_reward: {total_reward}, solved: {solved}, loss: {loss}, "
+                f"Episode {episode}, total_reward: {total_reward}, solved: {solved}, loss: {loss}, "
                 f"action_entropy: {action_entropy}, advantages_mean: {advantages_mean}"
             )
             if self.config.train.log_wandb:
                 wandb.log(
                     {
-                        "episode": epi,
+                        "episode": episode,
                         "loss": loss,
                         "total_reward": total_reward,
                         "action_entropy": action_entropy,
