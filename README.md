@@ -27,4 +27,5 @@ pip install toyrl
 - [x] REINFORCE
 - [x] SARSA
 - [x] DQN & Double DQN
-- [ ] A2C
+- [x] A2C
+- [ ] PPO
