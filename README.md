@@ -29,3 +29,8 @@ pip install toyrl
 - [x] DQN & Double DQN
 - [x] A2C
 - [x] PPO
+
+
+## References
+- [kengz/SLM-Lab](https://github.com/kengz/SLM-Lab): Our implementations are inspired by the book "Foundations of Deep Reinforcement Learning" and the implementation of SLM-Lab.
+- [vwxyzjn/cleanrl](https://github.com/vwxyzjn/cleanrl): The main reference for the implementation of the PPO implementation.
