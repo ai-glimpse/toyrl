@@ -252,7 +252,7 @@ class PPOTrainer:
         observations, _ = self.envs.reset()
         for iteration in range(num_iteration):
             if self.config.train.anneal_learning_rate:
-                frac = 1.0 - (iteration - 1.0) / num_iteration
+                frac = 1.0 - iteration / num_iteration
                 lr = frac * self.config.train.learning_rate
                 self.agent.optimizer.param_groups[0]["lr"] = lr
 
