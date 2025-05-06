@@ -1,11 +1,11 @@
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from typing import Any
-import numpy as np
+
 import gymnasium as gym
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-
 import wandb
 
 
@@ -218,7 +218,7 @@ class PPOTrainer:
     def __init__(self, config: PPOConfig) -> None:
         self.config = config
         self.envs = self._make_env()
-        env_dim = self.envs.observation_space.shape[0]  # type: ignore[index]
+        env_dim = self.envs.single_observation_space.shape[0]  # type: ignore[index]
         action_num = self.envs.single_action_space.n  # type: ignore[attr-defined]
         actor = ActorPolicyNet(env_dim=env_dim, action_num=action_num)
         critic = CriticValueNet(env_dim=env_dim)
