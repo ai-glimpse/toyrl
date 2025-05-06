@@ -26,19 +26,14 @@ jobs:
       uses: astral-sh/setup-uv@v6
       with:
         enable-cache: true
-        cache-dependency-glob: "uv.lock"
+        cache-dependency-glob: "pyproject.toml"
     - name: "Set up Python"
       uses: actions/setup-python@v5
       with:
         python-version-file: "pyproject.toml"
-
     - name: Install the project
       run: uv sync --all-extras --dev
     - name: Build package
       run: uv build
-    # TODO: Change with `uv publish`
-    - name: Publish package
-      uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc
-      with:
-        user: __token__
-        password: ${{ secrets.PYPI_API_TOKEN }}
+    - name: Publish pacakge
+      run: uv publish
