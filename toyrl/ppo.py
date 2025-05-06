@@ -101,6 +101,7 @@ class TrainConfig:
     """The number of mini-batches"""
 
     learning_rate: float = 2.5e-4
+    anneal_learning_rate: bool = True
     log_wandb: bool = False
 
 
@@ -132,25 +133,30 @@ class PPOAgent:
         action_logprob = torch.log(probs[action])
         return action.item(), action_logprob.item()
 
-    def net_update(self,
-                   num_minibatches: int,
-                   gamma: float,
-                   lambda_: float,
-                   epsilon: float,
-                   entropy_coef: float,
-                   ) -> float:
+    def net_update(
+        self,
+        num_minibatches: int,
+        gamma: float,
+        lambda_: float,
+        epsilon: float,
+        entropy_coef: float,
+    ) -> float:
         raw_experiences = self._replay_buffer.sample()
         # calculate advantages and target values by GAE
         experiences = self._calc_adv_v_target(raw_experiences, gamma, lambda_)
         minibatch_size = len(experiences) // num_minibatches
         total_loss = 0.0
         for i in range(num_minibatches):
-            batch_experiences = experiences[minibatch_size * i: minibatch_size * (i + 1)]
+            batch_experiences = experiences[minibatch_size * i : minibatch_size * (i + 1)]
             observations = torch.tensor(np.array([exp.observation for exp in batch_experiences]), dtype=torch.float32)
             actions = torch.tensor(np.array([exp.action for exp in batch_experiences]), dtype=torch.int64)
-            old_action_logprobs = torch.tensor(np.array([exp.action_logprob for exp in batch_experiences]), dtype=torch.float32)
+            old_action_logprobs = torch.tensor(
+                np.array([exp.action_logprob for exp in batch_experiences]), dtype=torch.float32
+            )
             advantages = torch.tensor(np.array([exp.advantage for exp in batch_experiences]), dtype=torch.float32)
-            target_v_values = torch.tensor(np.array([exp.target_value for exp in batch_experiences]), dtype=torch.float32)
+            target_v_values = torch.tensor(
+                np.array([exp.target_value for exp in batch_experiences]), dtype=torch.float32
+            )
 
             # critic value loss
             v_values = self.critic(observations).squeeze(1)
@@ -186,8 +192,12 @@ class PPOAgent:
             rewards = torch.tensor([exp.reward for exp in env_experiences], dtype=torch.float32)
             terminateds = torch.tensor([exp.terminated for exp in env_experiences], dtype=torch.float32)
             with torch.no_grad():
-                values = self.critic(torch.tensor(np.array([exp.observation for exp in env_experiences]), dtype=torch.float32)).squeeze(1)
-                next_values = self.critic(torch.tensor(np.array([exp.next_observation for exp in env_experiences]), dtype=torch.float32)).squeeze(1)
+                values = self.critic(
+                    torch.tensor(np.array([exp.observation for exp in env_experiences]), dtype=torch.float32)
+                ).squeeze(1)
+                next_values = self.critic(
+                    torch.tensor(np.array([exp.next_observation for exp in env_experiences]), dtype=torch.float32)
+                ).squeeze(1)
             deltas = rewards + gamma * (1 - terminateds) * next_values - values
             advantages = torch.empty_like(deltas).detach()  # TODO: no need use detach?
             for t in reversed(range(len(deltas))):
@@ -210,7 +220,6 @@ class PPOTrainer:
         self.envs = self._make_env()
         env_dim = self.envs.observation_space.shape[0]  # type: ignore[index]
         action_num = self.envs.single_action_space.n  # type: ignore[attr-defined]
-        print(f"env_dim: {env_dim}, action_num: {action_num}")
         actor = ActorPolicyNet(env_dim=env_dim, action_num=action_num)
         critic = CriticValueNet(env_dim=env_dim)
         optimizer = torch.optim.Adam(
@@ -227,10 +236,11 @@ class PPOTrainer:
             )
 
     def _make_env(self):
-        envs = gym.make_vec(id=self.config.env.env_name,
-                            num_envs=self.config.env.num_envs,
-                            render_mode=self.config.env.render_mode,
-                            )
+        envs = gym.make_vec(
+            id=self.config.env.env_name,
+            num_envs=self.config.env.num_envs,
+            render_mode=self.config.env.render_mode,
+        )
         envs = gym.wrappers.vector.RecordEpisodeStatistics(envs)
         return envs
 
@@ -241,9 +251,14 @@ class PPOTrainer:
         global_step = 0
         observations, _ = self.envs.reset()
         for iteration in range(num_iteration):
-            # print(f"Iteration {iteration + 1}/{num_iteration}, global_step={global_step}")
+            if self.config.train.anneal_learning_rate:
+                frac = 1.0 - (iteration - 1.0) / num_iteration
+                lr = frac * self.config.train.learning_rate
+                self.agent.optimizer.param_groups[0]["lr"] = lr
+
             # Collect experience
             for step in range(self.config.train.time_horizons):
+                global_step += self.config.env.num_envs
                 actions, action_logprobs = [], []
                 for obs in observations:
                     action, action_logprob = self.agent.act(obs)
@@ -251,7 +266,6 @@ class PPOTrainer:
                     action_logprobs.append(action_logprob)
                 next_observations, rewards, terminateds, truncateds, infos = self.envs.step(np.array(actions))
                 for env_id in range(self.config.env.num_envs):
-                    global_step += self.config.env.num_envs
                     experience = Experience(
                         env_id=env_id,
                         terminated=terminateds[env_id],
@@ -265,37 +279,38 @@ class PPOTrainer:
                     self.agent.add_experience(experience)
                 observations = next_observations
 
-                if 'episode' in infos:
+                if "episode" in infos:
                     for i in range(self.config.env.num_envs):
                         if infos["_episode"][i]:
-                            print(
-                                f"global_step={global_step}, episodic_return={infos['episode']['r'][i]}"
-                            )
+                            print(f"global_step={global_step}, episodic_return={infos['episode']['r'][i]}")
                             if self.config.train.log_wandb:
                                 wandb.log(
                                     {
                                         "global_step": global_step,
                                         "episodic_return": infos["episode"]["r"][i],
-                                        "episodic_length": infos["episode"]["l"][i],
                                     }
                                 )
 
             # Update policy
+            total_loss = 0.0
             for _ in range(self.config.train.update_epochs):
-                loss = self.agent.net_update(gamma=self.config.train.gamma,
-                                              lambda_=self.config.train.lambda_,
-                                              epsilon=self.config.train.epsilon,
-                                              entropy_coef=self.config.train.entropy_coef,
-                                              num_minibatches=self.config.train.num_minibatches,
-                                              )
-                # print(f"Iteration {iteration + 1}/{num_iteration}, loss: {loss}")
-                if self.config.train.log_wandb:
-                    wandb.log(
-                        {
-                            "iteration": iteration,
-                            "loss": loss,
-                        }
-                    )
+                loss = self.agent.net_update(
+                    gamma=self.config.train.gamma,
+                    lambda_=self.config.train.lambda_,
+                    epsilon=self.config.train.epsilon,
+                    entropy_coef=self.config.train.entropy_coef,
+                    num_minibatches=self.config.train.num_minibatches,
+                )
+                total_loss += loss
+            loss = total_loss / self.config.train.update_epochs
+            if self.config.train.log_wandb:
+                wandb.log(
+                    {
+                        "global_step": global_step,
+                        "learning_rate": self.agent.optimizer.param_groups[0]["lr"],
+                        "loss": loss,
+                    }
+                )
             # Onpolicy reset
             self.agent.reset()
 
@@ -308,7 +323,7 @@ if __name__ == "__main__":
             lambda_=0.95,
             epsilon=0.2,
             entropy_coef=0.01,
-            total_timesteps=500000,
+            total_timesteps=1000000,
             time_horizons=256,
             update_epochs=4,
             num_minibatches=4,
