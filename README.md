@@ -28,4 +28,4 @@ pip install toyrl
 - [x] SARSA
 - [x] DQN & Double DQN
 - [x] A2C
-- [ ] PPO
+- [x] PPO
