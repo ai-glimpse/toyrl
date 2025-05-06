@@ -120,7 +120,7 @@ target-version = "py312"
 select = [
     'F', # Pyflakes
     'E', # pycodestyle (Error)
-    # 'I',  # isort  # TODO: enable isort
+    'I',  # isort  # TODO: enable isort
     'D',  # pydocstyle
     'UP', # pyupgrade
 ]
