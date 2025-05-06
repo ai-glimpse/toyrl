@@ -160,7 +160,6 @@ class PPOAgent:
 
             # critic value loss
             v_values = self.critic(observations).squeeze(1)
-            # TODO: clip value loss use eps too?
             critic_value_loss = torch.nn.functional.mse_loss(v_values, target_v_values)
 
             # actor policy loss
@@ -199,7 +198,7 @@ class PPOAgent:
                     torch.tensor(np.array([exp.next_observation for exp in env_experiences]), dtype=torch.float32)
                 ).squeeze(1)
             deltas = rewards + gamma * (1 - terminateds) * next_values - values
-            advantages = torch.empty_like(deltas).detach()  # TODO: no need use detach?
+            advantages = torch.empty_like(deltas).detach()
             for t in reversed(range(len(deltas))):
                 if t == len(deltas) - 1:
                     advantages[t] = deltas[t]
