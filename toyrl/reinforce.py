@@ -10,6 +10,8 @@ import wandb
 
 
 class PolicyNet(nn.Module):
+    """A simple policy network for REINFORCE."""
+
     def __init__(self, env_dim: int, action_num: int) -> None:
         super().__init__()
         layers = [
@@ -26,6 +28,8 @@ class PolicyNet(nn.Module):
 
 @dataclass
 class Experience:
+    """An experience for REINFORCE."""
+
     observation: Any
     action: Any
     action_log_prob: torch.Tensor
@@ -37,6 +41,8 @@ class Experience:
 
 @dataclass
 class ReplayBuffer:
+    """A replay buffer for REINFORCE."""
+
     buffer: list[Experience] = field(default_factory=list)
 
     def __len__(self) -> int:
@@ -56,6 +62,8 @@ class ReplayBuffer:
 
 
 class Agent:
+    """An agent for REINFORCE."""
+
     def __init__(self, policy_net: nn.Module, optimizer: torch.optim.Optimizer) -> None:
         self._policy_net = policy_net
         self._optimizer = optimizer
@@ -106,6 +114,8 @@ class Agent:
 
 @dataclass
 class EnvConfig:
+    """An environment configuration for REINFORCE."""
+
     env_name: str = "CartPole-v1"
     render_mode: str | None = None
     solved_threshold: float = 475.0
@@ -113,6 +123,8 @@ class EnvConfig:
 
 @dataclass
 class TrainConfig:
+    """A training configuration for REINFORCE."""
+
     gamma: float = 0.999
     num_episodes: int = 500
     learning_rate: float = 0.01
@@ -122,11 +134,15 @@ class TrainConfig:
 
 @dataclass
 class ReinforceConfig:
+    """A configuration for REINFORCE."""
+
     env: EnvConfig = field(default_factory=EnvConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
 
 
 class ReinforceTrainer:
+    """A trainer for REINFORCE."""
+
     def __init__(self, config: ReinforceConfig) -> None:
         self.config = config
         self.env = gym.make(config.env.env_name, render_mode=config.env.render_mode)
@@ -150,6 +166,7 @@ class ReinforceTrainer:
             )
 
     def train(self) -> None:
+        """Train the agent."""
         for epi in range(self.num_episodes):
             observation, _ = self.env.reset()
             terminated, truncated = False, False
