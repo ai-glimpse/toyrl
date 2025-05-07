@@ -6,13 +6,11 @@ import torch
 
 from toyrl.reinforce import (
     Agent,
-    EnvConfig,
     Experience,
     PolicyNet,
     ReinforceConfig,
     ReinforceTrainer,
     ReplayBuffer,
-    TrainConfig,
 )
 
 
@@ -93,26 +91,31 @@ def test_config():
     config = ReinforceConfig()
 
     # Check default values
-    assert config.env.env_name == "CartPole-v1"
-    assert config.train.gamma == 0.999
+    assert config.env_name == "CartPole-v1"
+    assert config.gamma == 0.999
 
     # Test custom config
     custom_config = ReinforceConfig(
-        env=EnvConfig(env_name="MountainCar-v0", solved_threshold=90.0),
-        train=TrainConfig(num_episodes=1000, learning_rate=0.005),
+        env_name="MountainCar-v0",
+        solved_threshold=90.0,
+        num_episodes=1000,
+        learning_rate=0.005,
     )
 
-    assert custom_config.env.env_name == "MountainCar-v0"
-    assert custom_config.env.solved_threshold == 90.0
-    assert custom_config.train.num_episodes == 1000
-    assert custom_config.train.learning_rate == 0.005
+    assert custom_config.env_name == "MountainCar-v0"
+    assert custom_config.solved_threshold == 90.0
+    assert custom_config.num_episodes == 1000
+    assert custom_config.learning_rate == 0.005
 
 
 def test_trainer_creation():
     """Test creating a trainer."""
     config = ReinforceConfig(
-        env=EnvConfig(env_name="CartPole-v1", render_mode=None),
-        train=TrainConfig(num_episodes=10, learning_rate=0.01, log_wandb=False),
+        env_name="CartPole-v1",
+        render_mode=None,
+        num_episodes=10,
+        learning_rate=0.01,
+        log_wandb=False,
     )
 
     trainer = ReinforceTrainer(config)
@@ -127,8 +130,11 @@ def test_minimal_training():
     """Test minimal training run with a single episode."""
     # Create minimal config with just one episode
     config = ReinforceConfig(
-        env=EnvConfig(env_name="CartPole-v1", render_mode=None),
-        train=TrainConfig(num_episodes=1, learning_rate=0.01, log_wandb=False),
+        env_name="CartPole-v1",
+        render_mode=None,
+        num_episodes=1,
+        learning_rate=0.01,
+        log_wandb=False,
     )
 
     # Initialize trainer

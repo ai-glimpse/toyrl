@@ -10,6 +10,48 @@ import torch.optim as optim
 import wandb
 
 
+@dataclass
+class DqnConfig:
+    """Configuration for DQN algorithm."""
+
+    # Environment config
+    env_name: str = "CartPole-v1"
+    render_mode: str | None = None
+    solved_threshold: float = 475.0
+
+    # Training config
+    gamma: float = 0.999
+    """The discount factor for future rewards."""
+    replay_buffer_capacity: int = 10000
+    """The maximum capacity of the experience replay buffer."""
+    max_training_steps: int = 500000
+    """The maximum number of environment steps to train for."""
+    learning_starts: int = 10000
+    """The number of steps to collect before starting learning."""
+    policy_update_frequency: int = 10
+    """How often to update the policy network (in environment steps)."""
+    batches_per_training_step: int = 16
+    """The number of experience batches to sample in each training step."""
+    batch_size: int = 128
+    """The size of each training batch."""
+    updates_per_batch: int = 1
+    """The number of optimization steps to perform on each batch."""
+    learning_rate: float = 0.01
+    """The learning rate for the optimizer."""
+
+    # Target network config
+    use_target_network: bool = False
+    """Whether to use a separate target network (Double DQN when True)."""
+    target_update_frequency: int = 10
+    """How often to update the target network (in environment steps)."""
+    target_soft_update_beta: float = 0.0
+    """The soft update parameter for target network (0.0 means hard update)."""
+
+    # Logging config
+    log_wandb: bool = False
+    """Whether to log the training process to Weights and Biases."""
+
+
 class PolicyNet(nn.Module):
     def __init__(
         self,
@@ -138,53 +180,6 @@ class Agent:
             raise ValueError("Target net is not set.")
 
 
-@dataclass
-class EnvConfig:
-    env_name: str = "CartPole-v1"
-    render_mode: str | None = None
-    solved_threshold: float = 475.0
-
-
-@dataclass
-class TrainConfig:
-    gamma: float = 0.999
-    """The discount factor for future rewards."""
-    replay_buffer_capacity: int = 10000
-    """The maximum capacity of the experience replay buffer."""
-
-    max_training_steps: int = 500000
-    """The maximum number of environment steps to train for."""
-    learning_starts: int = 10000
-    """The number of steps to collect before starting learning."""
-    policy_update_frequency: int = 10
-    """How often to update the policy network (in environment steps)."""
-    batches_per_training_step: int = 16
-    """The number of experience batches to sample in each training step."""
-    batch_size: int = 128
-    """The size of each training batch."""
-    updates_per_batch: int = 1
-    """The number of optimization steps to perform on each batch."""
-
-    learning_rate: float = 0.01
-    """The learning rate for the optimizer."""
-
-    use_target_network: bool = False
-    """Whether to use a separate target network (Double DQN when True)."""
-    target_update_frequency: int = 10
-    """How often to update the target network (in environment steps)."""
-    target_soft_update_beta: float = 0.0
-    """The soft update parameter for target network (0.0 means hard update)."""
-
-    log_wandb: bool = False
-    """Whether to log the training process to Weights and Biases."""
-
-
-@dataclass
-class DqnConfig:
-    env: EnvConfig = field(default_factory=EnvConfig)
-    train: TrainConfig = field(default_factory=TrainConfig)
-
-
 class DqnTrainer:
     def __init__(self, config: DqnConfig) -> None:
         self.config = config
@@ -195,8 +190,8 @@ class DqnTrainer:
         action_num = self.env.action_space.n  # type: ignore[attr-defined]
 
         policy_net = PolicyNet(env_dim=env_dim, action_num=action_num)
-        optimizer = optim.Adam(policy_net.parameters(), lr=config.train.learning_rate)
-        if config.train.use_target_network:
+        optimizer = optim.Adam(policy_net.parameters(), lr=config.learning_rate)
+        if config.use_target_network:
             target_net = PolicyNet(env_dim=env_dim, action_num=action_num)
             target_net.load_state_dict(policy_net.state_dict())
         else:
@@ -205,28 +200,28 @@ class DqnTrainer:
             policy_net=policy_net,
             target_net=target_net,
             optimizer=optimizer,
-            replay_buffer_size=config.train.replay_buffer_capacity,
+            replay_buffer_size=config.replay_buffer_capacity,
         )
 
-        self.gamma = config.train.gamma
-        self.solved_threshold = config.env.solved_threshold
-        if config.train.log_wandb:
+        self.gamma = config.gamma
+        self.solved_threshold = config.solved_threshold
+        if config.log_wandb:
             wandb.init(
                 # set the wandb project where this run will be logged
                 project=self._get_dqn_name(),
-                name=f"[{config.env.env_name}],lr={config.train.learning_rate}",
+                name=f"[{config.env_name}],lr={config.learning_rate}",
                 # track hyperparameters and run metadata
                 config=asdict(config),
             )
 
     def _make_env(self):
-        env = gym.make(self.config.env.env_name, render_mode=self.config.env.render_mode)
+        env = gym.make(self.config.env_name, render_mode=self.config.render_mode)
         env = gym.wrappers.RecordEpisodeStatistics(env)
         env = gym.wrappers.Autoreset(env)
         return env
 
     def _get_dqn_name(self) -> str:
-        if self.config.train.use_target_network:
+        if self.config.use_target_network:
             return "Double DQN"
         return "DQN"
 
@@ -234,13 +229,13 @@ class DqnTrainer:
         tau = 5.0
         global_step = 0
         observation, _ = self.env.reset()
-        while global_step < self.config.train.max_training_steps:
+        while global_step < self.config.max_training_steps:
             global_step += 1
             # decay tau
             tau = max(0.1, tau * 0.995)
 
             action, q_value = self.agent.act(observation, tau)
-            if self.config.train.log_wandb:
+            if self.config.log_wandb:
                 wandb.log({"global_step": global_step, "q_value": q_value})
 
             next_observation, reward, terminated, truncated, info = self.env.step(action)
@@ -259,7 +254,7 @@ class DqnTrainer:
                 if info and "episode" in info:
                     reward = info["episode"]["r"]
                     print(f"global_step={global_step}, episodic_return={reward}")
-                    if self.config.train.log_wandb:
+                    if self.config.log_wandb:
                         wandb.log(
                             {
                                 "global_step": global_step,
@@ -270,12 +265,9 @@ class DqnTrainer:
             if self.env.render_mode is not None:
                 self.env.render()
 
-            if (
-                global_step >= self.config.train.learning_starts
-                and global_step % self.config.train.policy_update_frequency == 0
-            ):
+            if global_step >= self.config.learning_starts and global_step % self.config.policy_update_frequency == 0:
                 loss = self._train_step()
-                if self.config.train.log_wandb:
+                if self.config.log_wandb:
                     wandb.log(
                         {
                             "global_step": global_step,
@@ -283,30 +275,30 @@ class DqnTrainer:
                         }
                     )
             # update target net
-            if self.config.train.use_target_network and global_step % self.config.train.target_update_frequency == 0:
-                self.agent.polyak_update(beta=self.config.train.target_soft_update_beta)
+            if self.config.use_target_network and global_step % self.config.target_update_frequency == 0:
+                self.agent.polyak_update(beta=self.config.target_soft_update_beta)
 
     def _train_step(self) -> float:
         loss = 0.0
-        for b in range(self.config.train.batches_per_training_step):
-            batch_experiences = self.agent.sample(self.config.train.batch_size)
-            for u in range(self.config.train.updates_per_batch):
+        for b in range(self.config.batches_per_training_step):
+            batch_experiences = self.agent.sample(self.config.batch_size)
+            for u in range(self.config.updates_per_batch):
                 loss += self.agent.policy_update(gamma=self.gamma, experiences=batch_experiences)
-        loss /= self.config.train.batches_per_training_step * self.config.train.updates_per_batch
+        loss /= self.config.batches_per_training_step * self.config.updates_per_batch
         return loss
 
 
 if __name__ == "__main__":
     simple_config = DqnConfig(
-        env=EnvConfig(env_name="CartPole-v1", render_mode=None, solved_threshold=475.0),
-        train=TrainConfig(
-            max_training_steps=500000,
-            learning_rate=2.5e-4,
-            use_target_network=True,
-            target_soft_update_beta=0.0,
-            target_update_frequency=5,
-            log_wandb=True,
-        ),
+        env_name="CartPole-v1",
+        render_mode=None,
+        solved_threshold=475.0,
+        max_training_steps=500000,
+        learning_rate=2.5e-4,
+        use_target_network=True,
+        target_soft_update_beta=0.0,
+        target_update_frequency=5,
+        log_wandb=True,
     )
     trainer = DqnTrainer(simple_config)
     trainer.train()
