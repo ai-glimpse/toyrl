@@ -1,7 +1,7 @@
 site_name: ToyRL
 repo_url: https://github.com/ai-glimpse/toyrl
 repo_name: ai-glimpse/toyrl
-site_description: A toy reinforcement learning library
+site_description: A simple and clean reinforcement learning library
 site_author: Xiangzhuang Shen
 copyright: Copyright &copy; 2025 Xiangzhuang Shen
 
