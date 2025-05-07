@@ -122,7 +122,7 @@ def test_minimal_training():
         env_name="CartPole-v1",
         render_mode=None,
         solved_threshold=475.0,
-        max_training_steps=1,  # Just run a single step
+        max_training_steps=100,
         learning_rate=0.01,
         log_wandb=False,
     )

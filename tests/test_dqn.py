@@ -237,7 +237,7 @@ def test_minimal_training(use_target_network):
     config = DqnConfig(
         env_name="CartPole-v1",
         render_mode=None,
-        max_training_steps=1,  # Just run a single step
+        max_training_steps=100,
         learning_starts=0,  # Start training immediately
         policy_update_frequency=1,  # Train every step
         learning_rate=0.01,
