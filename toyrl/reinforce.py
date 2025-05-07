@@ -175,7 +175,6 @@ class ReinforceTrainer:
                 observation = next_observation
                 if self.config.render_mode is not None:
                     self.env.render()
-                self.env.render()
             loss = self.agent.policy_update(
                 gamma=self.gamma,
                 with_baseline=self.with_baseline,
