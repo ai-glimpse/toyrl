@@ -9,6 +9,27 @@ import torch.optim as optim
 import wandb
 
 
+@dataclass
+class SarsaConfig:
+    """Configuration for SARSA algorithm."""
+
+    # Environment config
+    env_name: str = "CartPole-v1"
+    render_mode: str | None = None
+    solved_threshold: float = 475.0
+
+    # Training config
+    gamma: float = 0.999
+    max_training_steps: int = 500000
+    """The maximum number of environment steps to train for."""
+    learning_rate: float = 2.5e-4
+    """The learning rate for the optimizer."""
+
+    # Logging config
+    log_wandb: bool = False
+    """Whether to log the training process to Weights and Biases."""
+
+
 class PolicyNet(nn.Module):
     def __init__(
         self,
@@ -127,30 +148,6 @@ class Agent:
         return loss.item()
 
 
-@dataclass
-class EnvConfig:
-    env_name: str = "CartPole-v1"
-    render_mode: str | None = None
-    solved_threshold: float = 475.0
-
-
-@dataclass
-class TrainConfig:
-    gamma: float = 0.999
-    max_training_steps: int = 500000
-    """The maximum number of environment steps to train for."""
-    learning_rate: float = 2.5e-4
-    """The learning rate for the optimizer."""
-    log_wandb: bool = False
-    """Whether to log the training process to Weights and Biases."""
-
-
-@dataclass
-class SarsaConfig:
-    env: EnvConfig = field(default_factory=EnvConfig)
-    train: TrainConfig = field(default_factory=TrainConfig)
-
-
 class SarsaTrainer:
     def __init__(self, config: SarsaConfig) -> None:
         self.config = config
@@ -160,22 +157,22 @@ class SarsaTrainer:
         env_dim = self.env.observation_space.shape[0]  # type: ignore[index]
         action_num = self.env.action_space.n  # type: ignore[attr-defined]
         policy_net = PolicyNet(env_dim=env_dim, action_num=action_num)
-        optimizer = optim.Adam(policy_net.parameters(), lr=config.train.learning_rate)
+        optimizer = optim.Adam(policy_net.parameters(), lr=config.learning_rate)
         self.agent = Agent(policy_net=policy_net, optimizer=optimizer)
 
-        self.gamma = config.train.gamma
-        self.solved_threshold = config.env.solved_threshold
-        if config.train.log_wandb:
+        self.gamma = config.gamma
+        self.solved_threshold = config.solved_threshold
+        if config.log_wandb:
             wandb.init(
                 # set the wandb project where this run will be logged
                 project="SARSA",
-                name=f"[{config.env.env_name}],lr={config.train.learning_rate}",
+                name=f"[{config.env_name}],lr={config.learning_rate}",
                 # track hyperparameters and run metadata
                 config=asdict(config),
             )
 
     def _make_env(self):
-        env = gym.make(self.config.env.env_name, render_mode=self.config.env.render_mode)
+        env = gym.make(self.config.env_name, render_mode=self.config.render_mode)
         env = gym.wrappers.RecordEpisodeStatistics(env)
         env = gym.wrappers.Autoreset(env)
         return env
@@ -185,7 +182,7 @@ class SarsaTrainer:
         global_step = 0
 
         observation, _ = self.env.reset()
-        while global_step < self.config.train.max_training_steps:
+        while global_step < self.config.max_training_steps:
             global_step += 1
             epsilon = max(0.05, epsilon * 0.9999)
 
@@ -212,7 +209,7 @@ class SarsaTrainer:
                     print(
                         f"global_step={global_step}, epsilon={epsilon}, episodic_return={episode_reward}, loss={loss}"
                     )
-                    if self.config.train.log_wandb:
+                    if self.config.log_wandb:
                         wandb.log(
                             {
                                 "global_step": global_step,
@@ -224,12 +221,12 @@ class SarsaTrainer:
 
 if __name__ == "__main__":
     default_config = SarsaConfig(
-        env=EnvConfig(env_name="CartPole-v1", render_mode=None, solved_threshold=475.0),
-        train=TrainConfig(
-            max_training_steps=2000000,
-            learning_rate=0.01,
-            log_wandb=True,
-        ),
+        env_name="CartPole-v1",
+        render_mode=None,
+        solved_threshold=475.0,
+        max_training_steps=2000000,
+        learning_rate=0.01,
+        log_wandb=True,
     )
     trainer = SarsaTrainer(default_config)
     trainer.train()

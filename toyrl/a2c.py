@@ -9,6 +9,30 @@ import torch.optim as optim
 import wandb
 
 
+@dataclass
+class A2CConfig:
+    """Configuration for A2C algorithm."""
+
+    # Environment config
+    env_name: str = "CartPole-v1"
+    render_mode: str | None = None
+    solved_threshold: float = 475.0
+
+    # Training config
+    gamma: float = 0.999
+    lambda_: float = 0.98
+    value_loss_coef: float = 0.5
+    policy_loss_coef: float = 0.5
+    entropy_coef: float = 0.01
+    num_episodes: int = 500
+    learning_rate: float = 0.01
+
+    # Evaluation config
+    eval_episodes: int = 10
+    eval_interval: int = 100
+    log_wandb: bool = False
+
+
 class ActorCriticNet(nn.Module):
     def __init__(self, env_dim: int, action_num: int) -> None:
         super().__init__()
@@ -129,57 +153,28 @@ class Agent:
         return loss.item(), action_entropy.item(), advantages.mean().item()
 
 
-@dataclass
-class EnvConfig:
-    env_name: str = "CartPole-v1"
-    render_mode: str | None = None
-    solved_threshold: float = 475.0
-
-
-@dataclass
-class TrainConfig:
-    gamma: float = 0.999
-    lambda_: float = 0.98
-    value_loss_coef: float = 0.5
-    policy_loss_coef: float = 0.5
-    entropy_coef: float = 0.01
-
-    num_episodes: int = 500
-    learning_rate: float = 0.01
-
-    eval_episodes: int = 10
-    eval_interval: int = 100
-    log_wandb: bool = False
-
-
-@dataclass
-class A2CConfig:
-    env: EnvConfig = field(default_factory=EnvConfig)
-    train: TrainConfig = field(default_factory=TrainConfig)
-
-
 class A2CTrainer:
     def __init__(self, config: A2CConfig) -> None:
         self.config = config
-        self.env = gym.make(config.env.env_name, render_mode=config.env.render_mode)
+        self.env = gym.make(config.env_name, render_mode=config.render_mode)
         env_dim = self.env.observation_space.shape[0]  # type: ignore[index]
         action_num = self.env.action_space.n  # type: ignore[attr-defined]
         net = ActorCriticNet(env_dim=env_dim, action_num=action_num)
-        optimizer = optim.Adam(net.parameters(), lr=config.train.learning_rate)
+        optimizer = optim.Adam(net.parameters(), lr=config.learning_rate)
         self.agent = Agent(net=net, optimizer=optimizer)
 
-        self.num_episodes = config.train.num_episodes
-        self.gamma = config.train.gamma
-        self.lambda_ = config.train.lambda_
-        self.value_loss_coef = config.train.value_loss_coef
-        self.policy_loss_coef = config.train.policy_loss_coef
-        self.entropy_coef = config.train.entropy_coef
-        self.solved_threshold = config.env.solved_threshold
-        if config.train.log_wandb:
+        self.num_episodes = config.num_episodes
+        self.gamma = config.gamma
+        self.lambda_ = config.lambda_
+        self.value_loss_coef = config.value_loss_coef
+        self.policy_loss_coef = config.policy_loss_coef
+        self.entropy_coef = config.entropy_coef
+        self.solved_threshold = config.solved_threshold
+        if config.log_wandb:
             wandb.init(
                 # set the wandb project where this run will be logged
                 project="A2C",
-                name=f"[{config.env.env_name}]lr={config.train.learning_rate}",
+                name=f"[{config.env_name}]lr={config.learning_rate}",
                 # track hyperparameters and run metadata
                 config=asdict(config),
             )
@@ -201,7 +196,7 @@ class A2CTrainer:
                 )
                 self.agent.add_experience(experience)
                 observation = next_observation
-                if self.config.env.render_mode is not None:
+                if self.config.render_mode is not None:
                     self.env.render()
             loss, action_entropy, advantages_mean = self.agent.net_update(
                 gamma=self.gamma,
@@ -217,7 +212,7 @@ class A2CTrainer:
                 f"Episode {episode}, total_reward: {total_reward}, solved: {solved}, loss: {loss}, "
                 f"action_entropy: {action_entropy}, advantages_mean: {advantages_mean}"
             )
-            if self.config.train.log_wandb:
+            if self.config.log_wandb:
                 wandb.log(
                     {
                         "episode": episode,
@@ -228,10 +223,10 @@ class A2CTrainer:
                     }
                 )
 
-            if i % self.config.train.eval_interval == 0:
-                eval_reward = self.evaluate(self.config.train.eval_episodes)
+            if i % self.config.eval_interval == 0:
+                eval_reward = self.evaluate(self.config.eval_episodes)
                 print(f"Episode {episode}, Eval reward: {eval_reward}")
-                if self.config.train.log_wandb:
+                if self.config.log_wandb:
                     wandb.log({"eval_reward": eval_reward, "episode": episode})
 
     def evaluate(self, num_episodes: int) -> float:
@@ -249,15 +244,12 @@ class A2CTrainer:
 
 if __name__ == "__main__":
     default_config = A2CConfig(
-        env=EnvConfig(env_name="CartPole-v1", render_mode=None, solved_threshold=475.0),
-        train=TrainConfig(
-            num_episodes=100000,
-            learning_rate=7e-4,
-            value_loss_coef=0.5,
-            policy_loss_coef=1,
-            entropy_coef=0.01,
-            log_wandb=True,
-        ),
+        env_name="CartPole-v1",
+        render_mode=None,
+        solved_threshold=475.0,
+        num_episodes=100000,
+        learning_rate=0.002,
+        log_wandb=True,
     )
     trainer = A2CTrainer(default_config)
     trainer.train()

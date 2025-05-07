@@ -9,6 +9,23 @@ import torch.optim as optim
 import wandb
 
 
+@dataclass
+class ReinforceConfig:
+    """Configuration for REINFORCE algorithm."""
+
+    # Environment config
+    env_name: str = "CartPole-v1"
+    render_mode: str | None = None
+    solved_threshold: float = 475.0
+
+    # Training config
+    gamma: float = 0.999
+    num_episodes: int = 500
+    learning_rate: float = 0.01
+    with_baseline: bool = True
+    log_wandb: bool = False
+
+
 class PolicyNet(nn.Module):
     """A simple policy network for REINFORCE."""
 
@@ -112,55 +129,27 @@ class Agent:
         return loss.item()
 
 
-@dataclass
-class EnvConfig:
-    """An environment configuration for REINFORCE."""
-
-    env_name: str = "CartPole-v1"
-    render_mode: str | None = None
-    solved_threshold: float = 475.0
-
-
-@dataclass
-class TrainConfig:
-    """A training configuration for REINFORCE."""
-
-    gamma: float = 0.999
-    num_episodes: int = 500
-    learning_rate: float = 0.01
-    with_baseline: bool = True
-    log_wandb: bool = False
-
-
-@dataclass
-class ReinforceConfig:
-    """A configuration for REINFORCE."""
-
-    env: EnvConfig = field(default_factory=EnvConfig)
-    train: TrainConfig = field(default_factory=TrainConfig)
-
-
 class ReinforceTrainer:
     """A trainer for REINFORCE."""
 
     def __init__(self, config: ReinforceConfig) -> None:
         self.config = config
-        self.env = gym.make(config.env.env_name, render_mode=config.env.render_mode)
+        self.env = gym.make(config.env_name, render_mode=config.render_mode)
         env_dim = self.env.observation_space.shape[0]  # type: ignore[index]
         action_num = self.env.action_space.n  # type: ignore[attr-defined]
         policy_net = PolicyNet(env_dim=env_dim, action_num=action_num)
-        optimizer = optim.Adam(policy_net.parameters(), lr=config.train.learning_rate)
+        optimizer = optim.Adam(policy_net.parameters(), lr=config.learning_rate)
         self.agent = Agent(policy_net=policy_net, optimizer=optimizer)
 
-        self.num_episodes = config.train.num_episodes
-        self.gamma = config.train.gamma
-        self.with_baseline = config.train.with_baseline
-        self.solved_threshold = config.env.solved_threshold
-        if config.train.log_wandb:
+        self.num_episodes = config.num_episodes
+        self.gamma = config.gamma
+        self.with_baseline = config.with_baseline
+        self.solved_threshold = config.solved_threshold
+        if config.log_wandb:
             wandb.init(
                 # set the wandb project where this run will be logged
                 project="Reinforce",
-                name=f"[{config.env.env_name}]lr={config.train.learning_rate}, baseline={config.train.with_baseline}",
+                name=f"[{config.env_name}]lr={config.learning_rate}, baseline={config.with_baseline}",
                 # track hyperparameters and run metadata
                 config=asdict(config),
             )
@@ -184,7 +173,7 @@ class ReinforceTrainer:
                 )
                 self.agent.add_experience(experience)
                 observation = next_observation
-                if self.config.env.render_mode is not None:
+                if self.config.render_mode is not None:
                     self.env.render()
                 self.env.render()
             loss = self.agent.policy_update(
@@ -195,7 +184,7 @@ class ReinforceTrainer:
             solved = total_reward > self.solved_threshold
             self.agent.onpolicy_reset()
             print(f"Episode {epi}, loss: {loss}, total_reward: {total_reward}, solved: {solved}")
-            if self.config.train.log_wandb:
+            if self.config.log_wandb:
                 wandb.log(
                     {
                         "episode": epi,
@@ -207,8 +196,13 @@ class ReinforceTrainer:
 
 if __name__ == "__main__":
     default_config = ReinforceConfig(
-        env=EnvConfig(env_name="CartPole-v1", render_mode=None, solved_threshold=475.0),
-        train=TrainConfig(num_episodes=100000, learning_rate=0.002, with_baseline=True, log_wandb=True),
+        env_name="CartPole-v1",
+        render_mode=None,
+        solved_threshold=475.0,
+        num_episodes=100000,
+        learning_rate=0.002,
+        with_baseline=True,
+        log_wandb=True,
     )
     trainer = ReinforceTrainer(default_config)
     trainer.train()
