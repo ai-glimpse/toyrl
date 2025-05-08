@@ -4,6 +4,7 @@
 [![PyPI](https://img.shields.io/pypi/v/toyrl?color=%2334D058&label=pypi%20package)](https://pypi.org/project/toyrl/)
 [![PyPI Downloads](https://static.pepy.tech/badge/toyrl)](https://pepy.tech/projects/toyrl)
 [![GitHub License](https://img.shields.io/github/license/ai-glimpse/toyrl)](https://github.com/ai-glimpse/toyrl/blob/master/LICENSE)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/ai-glimpse/toyrl)
 
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
