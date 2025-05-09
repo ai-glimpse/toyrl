@@ -40,7 +40,7 @@ class PolicyNet(nn.Module):
         self.train()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.model(x)  # type: ignore
+        return self.model(x)
 
 
 @dataclass

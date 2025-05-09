@@ -50,7 +50,7 @@ class ActorPolicyNet(nn.Module):
         self.model = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.model(x)  # type: ignore
+        return self.model(x)
 
 
 class CriticValueNet(nn.Module):
@@ -66,7 +66,7 @@ class CriticValueNet(nn.Module):
         self.model = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.model(x)  # type: ignore
+        return self.model(x)
 
 
 @dataclass
@@ -210,8 +210,8 @@ class PPOTrainer:
     def __init__(self, config: PPOConfig) -> None:
         self.config = config
         self.envs = self._make_env()
-        env_dim = self.envs.single_observation_space.shape[0]  # type: ignore[index]
-        action_num = self.envs.single_action_space.n  # type: ignore[attr-defined]
+        env_dim = self.envs.single_observation_space.shape[0]
+        action_num = self.envs.single_action_space.n
         actor = ActorPolicyNet(env_dim=env_dim, action_num=action_num)
         critic = CriticValueNet(env_dim=env_dim)
         optimizer = torch.optim.Adam(list(actor.parameters()) + list(critic.parameters()), lr=config.learning_rate)

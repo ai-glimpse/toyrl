@@ -48,7 +48,7 @@ class PolicyNet(nn.Module):
         self.model = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.model(x)  # type: ignore
+        return self.model(x)
 
 
 @dataclass
@@ -154,8 +154,8 @@ class SarsaTrainer:
         self.env = self._make_env()
         if isinstance(self.env.action_space, gym.spaces.Discrete) is False:
             raise ValueError("Only discrete action space is supported.")
-        env_dim = self.env.observation_space.shape[0]  # type: ignore[index]
-        action_num = self.env.action_space.n  # type: ignore[attr-defined]
+        env_dim = self.env.observation_space.shape[0]
+        action_num = self.env.action_space.n
         policy_net = PolicyNet(env_dim=env_dim, action_num=action_num)
         optimizer = optim.Adam(policy_net.parameters(), lr=config.learning_rate)
         self.agent = Agent(policy_net=policy_net, optimizer=optimizer)
